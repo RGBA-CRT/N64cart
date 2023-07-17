@@ -1,0 +1,4 @@
+#!/bin/bash
+echo "target remote `tail -1 /etc/resolv.conf|awk '{print $2}'`:3333" > .gdbinit.pico
+echo "set disassemble-next-line on" >> .gdbinit.pico
+gdb-multiarch -x .gdbinit.pico $*
