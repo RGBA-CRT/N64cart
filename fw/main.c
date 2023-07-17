@@ -38,7 +38,7 @@ static const struct flash_chip {
     uint16_t pi_bus_freq;
     const char *name;
 } flash_chip[] = {
-    { 0xef, 0x4020, 4, 16, 220000, 0x4028, "W25Q512" },
+    { 0xef, 0x4020, 4, 16, 190000, 0x4030, "W25Q512" },
     { 0xef, 0x4019, 2, 16, 256000, 0x4022, "W25Q256" },
     { 0xef, 0x4018, 1, 16, 256000, 0x4022, "W25Q128" },
     { 0xef, 0x4017, 1, 8 , 256000, 0x4022, "W25Q64"  },
@@ -147,12 +147,22 @@ int main(void)
     gpio_init(LED_PIN);
     gpio_set_dir(LED_PIN, GPIO_OUT);
 
+    uint8_t before[8];
+    memcpy(before, (void*)0x10000000, 8);
     setup_sysconfig();
 
     stdio_init_all();
     stdio_uart_init_full(UART_ID, BAUD_RATE, UART_TX_PIN, UART_RX_PIN);
 
     printf("N64cart booting!\n\n");
+    for(int i=0;i<8;i++){
+        printf("%02x ", before[i]);
+    }
+    printf("\n");
+    for(int i=0;i<8;i++){
+        printf("%02x ", ((uint8_t*)XIP_BASE)[i]);
+    }
+    printf(" read boot2 at oc\n");
     show_sysinfo();
 
     memcpy(sram_8, n64_sram, SRAM_1MBIT_SIZE);

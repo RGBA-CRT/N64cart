@@ -23,6 +23,8 @@
 #define usb_hw_set hw_set_alias(usb_hw)
 #define usb_hw_clear hw_clear_alias(usb_hw)
 
+// #define USB_DEBUG
+
 // Function prototypes for our device specific endpoint handlers defined
 // later on
 void ep0_in_handler(uint8_t *buf, uint16_t len);
@@ -582,7 +584,9 @@ static uint32_t flash_offset;
 
 // Device specific functions
 void ep1_out_handler(uint8_t *buf, uint16_t len) {
-//    printf("RX %d bytes from host\n", len);
+#ifdef USB_DEBUG
+   printf("RX %d bytes from host\n", len);
+#endif
 
     if (flash_stage == 0) {
 	if (len != sizeof(struct data_header)) {
@@ -606,6 +610,8 @@ void ep1_out_handler(uint8_t *buf, uint16_t len) {
 		flash_received_size = 0;
 		if (flash_header.type == DATA_WRITE) {
 		    flash_offset = rom_start[flash_header.pages];
+            printf("before set ea reg. bank=%d\n", flash_header.pages);
+            printf("current ea reg = %d\n", flash_get_ea_reg());
 		    flash_set_ea_reg(flash_header.pages);
 		    printf("Write ROM %d bytes to ROM page %d\n", flash_header.length, flash_header.pages);
 		} else {

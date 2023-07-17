@@ -72,7 +72,7 @@ static void __no_inline_not_in_flash_func(xflash_do_cmd_internal)(const uint8_t 
 
 void __no_inline_not_in_flash_func(flash_set_ea_reg)(uint8_t addr)
 {
-    rom_connect_internal_flash_fn connect_internal_flash = (rom_connect_internal_flash_fn)rom_func_lookup_inline(ROM_FUNC_CONNECT_INTERNAL_FLASH);
+     rom_connect_internal_flash_fn connect_internal_flash = (rom_connect_internal_flash_fn)rom_func_lookup_inline(ROM_FUNC_CONNECT_INTERNAL_FLASH);
     rom_flash_exit_xip_fn flash_exit_xip = (rom_flash_exit_xip_fn)rom_func_lookup_inline(ROM_FUNC_FLASH_EXIT_XIP);
     rom_flash_flush_cache_fn flash_flush_cache = (rom_flash_flush_cache_fn)rom_func_lookup_inline(ROM_FUNC_FLASH_FLUSH_CACHE);
     assert(connect_internal_flash && flash_exit_xip && flash_flush_cache);
@@ -80,7 +80,6 @@ void __no_inline_not_in_flash_func(flash_set_ea_reg)(uint8_t addr)
     __compiler_memory_barrier();
     connect_internal_flash();
     flash_exit_xip();
-
     uint8_t txbuf[4];
     uint8_t rxbuf[4];
 
@@ -90,7 +89,6 @@ void __no_inline_not_in_flash_func(flash_set_ea_reg)(uint8_t addr)
 
     txbuf[0] = 0x06;
     xflash_do_cmd_internal(txbuf, rxbuf, 1);
-
 //    txbuf[0] = 0x05;
 //    xflash_do_cmd_internal(txbuf, rxbuf, 2);
 //    printf("Status register %02X\n", rxbuf[1]);
@@ -105,9 +103,11 @@ void __no_inline_not_in_flash_func(flash_set_ea_reg)(uint8_t addr)
 //    txbuf[0] = 0xc8;
 //    xflash_do_cmd_internal(txbuf, rxbuf, 2);
 //    printf("EA register %02X\n", rxbuf[1]);
-
+printf("ea8\n");
     flash_flush_cache();
+printf("eaA\n");
     flash_enable_xip_via_boot2();
+printf("ea9\n");
 }
 
 uint8_t __no_inline_not_in_flash_func(flash_get_ea_reg)(void)
@@ -116,9 +116,17 @@ uint8_t __no_inline_not_in_flash_func(flash_get_ea_reg)(void)
     rom_flash_exit_xip_fn flash_exit_xip = (rom_flash_exit_xip_fn)rom_func_lookup_inline(ROM_FUNC_FLASH_EXIT_XIP);
     rom_flash_flush_cache_fn flash_flush_cache = (rom_flash_flush_cache_fn)rom_func_lookup_inline(ROM_FUNC_FLASH_FLUSH_CACHE);
     assert(connect_internal_flash && flash_exit_xip && flash_flush_cache);
+    for(int i=0;i<8;i++){
+        printf("%02x ", ((uint8_t*)XIP_BASE)[i]);
+    }
+    printf(" read boot2 at oc\n");
     flash_init_boot2_copyout();
     __compiler_memory_barrier();
     connect_internal_flash();
+        for(int i=0;i<8;i++){
+        printf("%02x ", ((uint8_t*)boot2_copyout)[i]);
+    }
+    printf(" current copyout\n");
     flash_exit_xip();
 
     uint8_t txbuf[2];

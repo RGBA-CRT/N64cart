@@ -26,6 +26,7 @@ add_compile_options(
     -Wno-unused-function # we have some for the docs that aren't called
     -Wno-maybe-uninitialized
     -fomit-frame-pointer
+    --save-temps
 )
 
 add_executable(
