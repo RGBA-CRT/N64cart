@@ -568,9 +568,11 @@ static void cic_run(void)
     printf("CIC Emulator core finished!\r\n");
 }
 
+extern void flash_set_ea_reg(uint8_t ea);
 void cic_main(void)
 {
     while (1) {
+        flash_set_ea_reg(0);
         cic_run();
     }
 }

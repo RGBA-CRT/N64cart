@@ -89,13 +89,14 @@ void n64_pi(void)
     }
 
     uint32_t last_addr = 0;
+    uint32_t last_ea_bank = 0;
     uint32_t word;
 
     uint32_t addr = pio_sm_get_blocking(pio, 0);
     do {
 	if (addr == 0) {
 	    //READ
-	    if (last_addr == 0x10000000) {
+	    if ((last_addr == 0x10000000) && (last_ea_bank==0)) {
 		word = 0x3780;
 		pio_sm_put(pio, 0, swap8(word));
 		last_addr += 2;
@@ -116,6 +117,11 @@ void n64_pi(void)
 		continue;
 	    } else if (last_addr >= 0x10000000 && last_addr <= 0x1FBFFFFF) {
 		do {
+		    uint32_t ea_bank = last_addr & 0x0F000000;
+		    if(ea_bank != last_ea_bank) {
+			flash_set_ea_reg_light(ea_bank >> 24);
+			last_ea_bank = ea_bank;
+		    }
 		    word = rom_file_16[(last_addr & 0xFFFFFF) >> 1];
  hackentry:
 		    pio_sm_put(pio, 0, swap8(word));

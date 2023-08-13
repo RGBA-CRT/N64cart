@@ -83,7 +83,86 @@ void __no_inline_not_in_flash_func(flash_set_ea_reg)(uint8_t addr)
     uint8_t txbuf[4];
     uint8_t rxbuf[4];
 
-//    txbuf[0] = 0xc8;
+    //https://github.com/raspberrypi/pico-bootrom/blob/ef22cd8ede5bc007f81d7f2416b48db90f313434/bootrom/program_flash_generic.c#L93
+
+   txbuf[0] = 0xc8;
+   xflash_do_cmd_internal(txbuf, rxbuf, 2);
+   printf("EA register %02X\n", rxbuf[1]);
+
+    txbuf[0] = 0x06;
+    xflash_do_cmd_internal(txbuf, rxbuf, 1);
+   txbuf[0] = 0x05;
+   xflash_do_cmd_internal(txbuf, rxbuf, 2);
+   printf("Status register %02X\n", rxbuf[1]);
+
+    txbuf[0] = 0xc5;
+    txbuf[1] = addr;
+    xflash_do_cmd_internal(txbuf, rxbuf, 2);
+
+    txbuf[0] = 0x04;
+    xflash_do_cmd_internal(txbuf, rxbuf, 1);
+
+   txbuf[0] = 0xc8;
+   xflash_do_cmd_internal(txbuf, rxbuf, 2);
+   printf("EA register %02X\n", rxbuf[1]);
+    flash_flush_cache();
+    flash_enable_xip_via_boot2();
+}
+
+void flash_set_ea_reg_light(uint8_t addr)
+{
+    // flash_init_boot2_copyout();
+    // __compiler_memory_barrier();
+    // connect_internal_flash();
+    // flash_exit_xip();
+    uint8_t txbuf[8] = {0};
+    uint8_t rxbuf[8]={0};
+
+    uint32_t ctrl_back = ssi_hw->ctrlr0;
+    uint32_t spi_ctrl_back = ssi_hw->spi_ctrlr0;
+    const uint32_t qspi_txrx =
+        (7 << SSI_CTRLR0_DFS_32_LSB) | /* 8 bits per data frame */ 
+        (SSI_CTRLR0_TMOD_VALUE_TX_AND_RX << SSI_CTRLR0_TMOD_LSB) | /* Ena TXRX*/ 
+        (SSI_CTRLR0_SPI_FRF_VALUE_STD    << SSI_CTRLR0_SPI_FRF_LSB);
+    const uint32_t std_spi_ctrlr = 
+        (0x03 << SSI_SPI_CTRLR0_XIP_CMD_LSB) |        /* Value of instruction prefix */ 
+        (0 << SSI_SPI_CTRLR0_ADDR_L_LSB) |           /* Total number of address + mode bits */ 
+        (2 << SSI_SPI_CTRLR0_INST_L_LSB) |                /* 8 bit command prefix (field value is bits divided by 4) */ 
+        (SSI_SPI_CTRLR0_TRANS_TYPE_VALUE_1C1A << SSI_SPI_CTRLR0_TRANS_TYPE_LSB); /* command and address both in serial format */
+
+    
+    // (void) ssi_hw->sr;
+    // (void) ssi_hw->icr;
+
+    // コマンドはSPI、データは4ﾋﾞtで通信すり必要？
+    //　QSPIではManufactireモード違い祖y、。
+
+	// CLK Divider. rp2040@266MHz div=4, qspi_clk=66MHz
+    // ssi_hw->baudr = 6;特別コメントアウト
+
+    ssi_hw->ssienr = 0;
+    ssi_hw->ctrlr0 = qspi_txrx;   
+    ssi_hw->spi_ctrlr0 = std_spi_ctrlr;    
+    
+    ssi_hw->ser = 1;
+    // Re-enable
+    ssi_hw->ssienr = 1;
+
+   txbuf[0] = 0x9f;
+   xflash_do_cmd_internal(txbuf, rxbuf, 4);
+
+    // for(int i=0;i<8;i++){
+    //     printf("%02x ", ((uint8_t*)rxbuf)[i]);
+    // }
+    // printf(": QSPI READ DEVICE ID\n");
+   
+    // for(int i=0;i<0x100;i++){
+    //     printf("%02x ", ((uint8_t*)XIP_SSI_BASE)[i]);
+    // }
+    // printf(": SSI REG DUMP\n");
+    
+   
+   txbuf[0] = 0xc8;
 //    xflash_do_cmd_internal(txbuf, rxbuf, 2);
 //    printf("EA register %02X\n", rxbuf[1]);
 
@@ -103,11 +182,15 @@ void __no_inline_not_in_flash_func(flash_set_ea_reg)(uint8_t addr)
 //    txbuf[0] = 0xc8;
 //    xflash_do_cmd_internal(txbuf, rxbuf, 2);
 //    printf("EA register %02X\n", rxbuf[1]);
-printf("ea8\n");
-    flash_flush_cache();
-printf("eaA\n");
-    flash_enable_xip_via_boot2();
-printf("ea9\n");
+
+   
+    ssi_hw->ssienr = 0;
+    ssi_hw->ctrlr0 = ctrl_back;    
+    ssi_hw->spi_ctrlr0 = spi_ctrl_back;    
+    ssi_hw->ssienr = 1;
+
+//     flash_flush_cache();
+    // flash_enable_xip_via_boot2();
 }
 
 uint8_t __no_inline_not_in_flash_func(flash_get_ea_reg)(void)
@@ -116,17 +199,8 @@ uint8_t __no_inline_not_in_flash_func(flash_get_ea_reg)(void)
     rom_flash_exit_xip_fn flash_exit_xip = (rom_flash_exit_xip_fn)rom_func_lookup_inline(ROM_FUNC_FLASH_EXIT_XIP);
     rom_flash_flush_cache_fn flash_flush_cache = (rom_flash_flush_cache_fn)rom_func_lookup_inline(ROM_FUNC_FLASH_FLUSH_CACHE);
     assert(connect_internal_flash && flash_exit_xip && flash_flush_cache);
-    for(int i=0;i<8;i++){
-        printf("%02x ", ((uint8_t*)XIP_BASE)[i]);
-    }
-    printf(" read boot2 at oc\n");
-    flash_init_boot2_copyout();
     __compiler_memory_barrier();
     connect_internal_flash();
-        for(int i=0;i<8;i++){
-        printf("%02x ", ((uint8_t*)boot2_copyout)[i]);
-    }
-    printf(" current copyout\n");
     flash_exit_xip();
 
     uint8_t txbuf[2];
