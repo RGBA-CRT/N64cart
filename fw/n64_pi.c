@@ -119,7 +119,13 @@ void n64_pi(void)
 		do {
 		    uint32_t ea_bank = last_addr & 0x0F000000;
 		    if(ea_bank != last_ea_bank) {
-			flash_set_ea_reg_light(ea_bank >> 24);
+			uint8_t page = (ea_bank>>24)  & 3;
+				if((ea_bank>>24) > 0x03){
+					flash_set_ea_reg(page);
+				}else{
+					flash_set_ea_reg_light(page);
+				}
+				rom_file_16 = (uint16_t *) (0x10000000 + rom_start[page]);
 			last_ea_bank = ea_bank;
 		    }
 		    word = rom_file_16[(last_addr & 0xFFFFFF) >> 1];
