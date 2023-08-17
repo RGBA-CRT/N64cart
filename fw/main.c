@@ -38,7 +38,7 @@ static const struct flash_chip {
     uint16_t pi_bus_freq;
     const char *name;
 } flash_chip[] = {
-    { 0xef, 0x4020, 4, 16, 190000, 0x4040, "W25Q512" },
+    { 0xef, 0x4020, 4, 16, 200000, 0x4080, "W25Q512" },
     { 0xef, 0x4019, 2, 16, 256000, 0x4022, "W25Q256" },
     { 0xef, 0x4018, 1, 16, 256000, 0x4022, "W25Q128" },
     { 0xef, 0x4017, 1, 8 , 256000, 0x4022, "W25Q64"  },
@@ -68,7 +68,7 @@ static void setup_sysconfig(void)
     jpeg_start = ((fw_binary_end - XIP_BASE) + 4095) & ~4095;
 
     rom_pages = 1;
-    rom_start[0] = jpeg_start + 64 * 1024;
+    rom_start[0] = ROM_BASE_RP2040 + jpeg_start + 64 * 1024;
     rom_size[0] = 2 * 1024 * 1024;
 
     for (int i = 0; i < sizeof(flash_chip) / sizeof(struct flash_chip); i++) {
@@ -77,7 +77,7 @@ static void setup_sysconfig(void)
 	    rom_size[0] = flash_chip[i].rom_size * 1024 * 1024;
 
 	    for (int p = 1; p < flash_chip[i].rom_pages; p++) {
-		rom_start[p] = 0;
+		rom_start[p] = ROM_BASE_RP2040 + 0;
 		rom_size[p] = flash_chip[i].rom_size * 1024 * 1024;
 	    }
 
@@ -152,27 +152,10 @@ int main(void)
     stdio_init_all();
     stdio_uart_init_full(UART_ID, BAUD_RATE, UART_TX_PIN, UART_RX_PIN);
 
-    flash_init();
+    flash_init_ea();
     flash_set_ea_reg(0);
 
-    for(int i=0;i<0x100;i++){
-        printf("%02x ", ((uint8_t*)XIP_SSI_BASE)[i]);
-    }
-    printf(": SSI REG DUMP\n");
-
-    printf("N64cart booting!\n\n");
-    for(int i=0;i<8;i++){
-        printf("%02x ", ((uint8_t*)XIP_BASE)[i]);
-    }
-    printf(": read boot2 AFTER oc\n");
-    for(int i=0;i<8;i++){
-        printf("%02x ", ((uint8_t*)XIP_BASE)[i]);
-    }
-    printf(": read boot2 BEFORE oc\n");
-    show_sysinfo();
-
     memcpy(sram_8, n64_sram, SRAM_1MBIT_SIZE);
-
 
     for(uint8_t j=0;j<rom_pages;j++){
        flash_set_ea_reg_light(j);

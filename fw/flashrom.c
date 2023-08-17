@@ -113,7 +113,11 @@ void __no_inline_not_in_flash_func(flash_set_ea_reg)(uint8_t addr)
     flash_set_ea_reg_light(addr);
 }
 
-void W25Q_enter_ommand_mode(){
+// #define WAIT_SSI_TX() while( !(ssi_hw->sr & (SSI_SR_TFE_BITS)) )
+// #define WAIT_SSI_TX() while( (ssi_hw->sr & (SSI_SR_BUSY_BITS)) )
+#define WAIT_SSI_TX() while((ssi_hw->sr & (SSI_SR_TFE_BITS | SSI_SR_BUSY_BITS)) != SSI_SR_TFE_BITS)
+
+void inline W25Q_enter_ommand_mode(){
     const uint32_t qspi_txrx =
         (7 << SSI_CTRLR0_DFS_32_LSB) | /* 8 bits per data frame */ 
         (SSI_CTRLR0_TMOD_VALUE_TX_AND_RX << SSI_CTRLR0_TMOD_LSB) | /* Ena TXRX*/ 
@@ -125,25 +129,30 @@ void W25Q_enter_ommand_mode(){
         (SSI_SPI_CTRLR0_TRANS_TYPE_VALUE_1C1A << SSI_SPI_CTRLR0_TRANS_TYPE_LSB); /* command and address both in serial format */
 
     ssi_hw->ssienr = 0;
-    (void) ssi_hw->sr;
-    (void) ssi_hw->icr;
+    // (void) ssi_hw->sr;
+    // (void) ssi_hw->icr;
     ssi_hw->ctrlr0 = qspi_txrx;   
     ssi_hw->spi_ctrlr0 = std_spi_ctrlr;    
     
     ssi_hw->ssienr = 1;
 }
 
-void xip_enter_command_mode(){
+void inline xip_enter_command_mode(){
 
     W25Q_enter_ommand_mode();
 
     // Stop XIP cs control. by dummy command
-    const uint8_t txbuf = 0x9f;
-    uint8_t rxbuf;
-    xflash_do_cmd_internal(&txbuf, &rxbuf, 1);
+    // const uint8_t txbuf = 0x9f;
+    // uint8_t rxbuf;
+    // xflash_do_cmd_internal(&txbuf, &rxbuf, 1);
+    
+    // flash_cs_force(0);
+    ssi_hw->dr0 = 0x9f;
+    WAIT_SSI_TX();
+    // flash_cs_force(1);
 }
 
-void xip_exit_command_mode(){
+void inline xip_exit_command_mode(){
     // https://github.com/raspberrypi/pico-sdk/blob/6a7db34ff63345a7badec79ebea3aaef1712f374/src/rp2_common/boot_stage2/boot2_w25q080.S
     /* flash_enable_xip_via_boot2 Details:
      * Check status register 2 to determine if QSPI mode is enabled, and perform an SR2 programming cycle if necessary.
@@ -170,16 +179,16 @@ void xip_exit_command_mode(){
         (SSI_SPI_CTRLR0_TRANS_TYPE_VALUE_1C2A << SSI_SPI_CTRLR0_TRANS_TYPE_LSB);      /* Send Command in serial mode then address in Quad I/O mode */
         
     ssi_hw->ssienr = 0;
-    (void) ssi_hw->sr;
-    (void) ssi_hw->icr;
+    // (void) ssi_hw->sr;
+    // (void) ssi_hw->icr;
     ssi_hw->ctrlr0 = dummy_read_ctrl0;    
     ssi_hw->spi_ctrlr0 = dummy_read_spi_ctrl0;    
+
     // printf("iospi = %x\n",ioqspi_hw->io[1].ctrl & IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_BITS);
- 
-    hw_write_masked(&ioqspi_hw->io[1].ctrl,
-        IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_VALUE_NORMAL << IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_LSB,
-        IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_BITS
-    );
+    // hw_write_masked(&ioqspi_hw->io[1].ctrl,
+    //     IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_VALUE_NORMAL << IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_LSB,
+    //     IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_BITS
+    // );
     // printf("iospi = %x\n",ioqspi_hw->io[1].ctrl & IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_BITS);
     ssi_hw->ssienr = 1;
 
@@ -188,15 +197,14 @@ void xip_exit_command_mode(){
     ssi_hw->dr0 = 0xA0;
 
     // dummy readコマンド街
-    while((ssi_hw->sr & (SSI_SR_TFE_BITS | SSI_SR_BUSY_BITS)) != SSI_SR_TFE_BITS);
+    WAIT_SSI_TX();
 
 
     // NEXT, XIP用にレジスタを構成
 
     const uint32_t xip_spi_ctrl0 =
-    (0xa0                      /* Mode bits to keep flash in continuous read mode */ 
-        << SSI_SPI_CTRLR0_XIP_CMD_LSB) | 
-    (8 << SSI_SPI_CTRLR0_ADDR_L_LSB) |    /* Total number of address + mode bits */ 
+    (0xa0 << SSI_SPI_CTRLR0_XIP_CMD_LSB) |     /* Mode bits to keep flash in continuous read mode */ 
+    (8 << SSI_SPI_CTRLR0_ADDR_L_LSB) |         /* Total number of address + mode bits */ 
     (4 << SSI_SPI_CTRLR0_WAIT_CYCLES_LSB) |    /* Hi-Z dummy clocks following address + mode */ 
     (SSI_SPI_CTRLR0_INST_L_VALUE_NONE          /* Do not send a command, instead send XIP_CMD as mode bits after address */ 
         << SSI_SPI_CTRLR0_INST_L_LSB) | 
@@ -205,8 +213,8 @@ void xip_exit_command_mode(){
       
 
     ssi_hw->ssienr = 0;
-    (void) ssi_hw->sr;
-    (void) ssi_hw->icr;
+    // (void) ssi_hw->sr;
+    // (void) ssi_hw->icr;
     ssi_hw->spi_ctrlr0 = xip_spi_ctrl0;    
       
     // hw_write_masked(&ioqspi_hw->io[1].ctrl,
@@ -223,15 +231,15 @@ void xip_exit_command_mode(){
     
 }
 
-void flash_init(){
-    xip_enter_command_mode();
+void flash_init_ea(){
+    // xip_enter_command_mode();
 
-    // Disable write protect is executed in normal set_ea_reg. skip here.
-    const uint8_t txbuf = 0x06;
-    uint8_t rxbuf;
-    xflash_do_cmd_internal(&txbuf, &rxbuf, 1);
+    // // Disable write protect is executed in normal set_ea_reg. skip here.
+    // const uint8_t txbuf[1] = {0x06};
+    // uint8_t rxbuf[1];
+    // xflash_do_cmd_internal(txbuf, rxbuf, 1);
 
-    xip_exit_command_mode();
+    // xip_exit_command_mode();
 
 }
 
@@ -275,11 +283,11 @@ void flash_set_ea_reg_light(uint8_t addr)
 {    
     // flash_trigger_flush_cache();
 
-    LATCODE(uint32_t tick[10]);
+    LATCODE(uint32_t tick[10] = {0});
     LATCODE(size_t ti = 0);
 
-    uint8_t txbuf[2] = {0};
-    uint8_t rxbuf[2];
+    // uint8_t txbuf[2];
+    // uint8_t rxbuf[2];
 
     LATCODE(tick[ti++] = get_tick());
     LATCODE(init_tick_timer());
@@ -289,13 +297,20 @@ void flash_set_ea_reg_light(uint8_t addr)
    
     LATCODE(tick[ti++] = get_tick());
     // Disable write protect is executed in normal set_ea_reg. skip here.
-    txbuf[0] = 0x06;
-    xflash_do_cmd_internal(txbuf, rxbuf, 1);
+    // txbuf[0] = 0x06;
+    // xflash_do_cmd_internal(txbuf, rxbuf, 1);
+    ssi_hw->dr0 = 0x06;
+    WAIT_SSI_TX();
     LATCODE(tick[ti++] = get_tick());
 
-    txbuf[0] = 0xc5;
-    txbuf[1] = addr;
-    xflash_do_cmd_internal(txbuf, rxbuf, 2);
+    ssi_hw->dr0 = 0xc5;
+    ssi_hw->dr0 = addr;
+    WAIT_SSI_TX();
+
+
+    // txbuf[0] = 0xc5;
+    // txbuf[1] = addr;
+    // xflash_do_cmd_internal(txbuf, rxbuf, 2);
     LATCODE(tick[ti++] = get_tick());
 
     // Enable write protect is not necesury.

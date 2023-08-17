@@ -72,7 +72,8 @@ uint16_t get_pi_bus_freq(void)
 
 void n64_pi(void)
 {
-    rom_file_16 = (uint16_t *) rom_file | ROM_BASE_RP2040;
+    rom_file_16 = (uint16_t *) ((uint32_t) rom_file | ROM_BASE_RP2040);
+	// rom_file_16 = (uint16_t *) (ROM_BASE_RP2040 + rom_start[0]);
     rom_jpeg_16 = (uint16_t *) (ROM_BASE_RP2040 + jpeg_start);
 
     PIO pio = pio0;
@@ -117,15 +118,11 @@ void n64_pi(void)
 		continue;
 	    } else if (last_addr >= 0x10000000 && last_addr <= 0x1FBFFFFF) {
 		do {
-		    uint32_t ea_bank = last_addr & 0x0F000000;
+		    uint32_t ea_bank = last_addr & 0x03000000;
 		    if(ea_bank != last_ea_bank) {
-			uint8_t page = (ea_bank>>24)  & 3;
-				if((ea_bank>>24) > 0x03){
-					flash_set_ea_reg(page);
-				}else{
-					flash_set_ea_reg_light(page);
-				}
-				rom_file_16 = (uint16_t *) (ROM_BASE_RP2040 + rom_start[page]);
+			uint8_t page = (ea_bank>>24)/* & 3*/;
+			flash_set_ea_reg_light(page);
+			rom_file_16 = (uint16_t *) (rom_start[page]);
 			last_ea_bank = ea_bank;
 		    }
 		    word = rom_file_16[(last_addr & 0xFFFFFF) >> 1];
@@ -192,7 +189,7 @@ void n64_pi(void)
 	    } else if (last_addr == 0x1fd0100e) {
 		int page = (addr >> 16);
 		if (page < rom_pages) {
-		    rom_file_16 = (uint16_t *) (ROM_BASE_RP2040 + rom_start[page]);
+		    rom_file_16 = (uint16_t *) (rom_start[page]);
 		    flash_set_ea_reg(page);
 		}
 	    }
