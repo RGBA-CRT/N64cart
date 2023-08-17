@@ -70,6 +70,8 @@ uint16_t get_pi_bus_freq(void)
     return pi_bus_freq;
 }
 
+    uint32_t last_addr = 0;
+    uint32_t last_ea_bank = 0;
 void n64_pi(void)
 {
     rom_file_16 = (uint16_t *) ((uint32_t) rom_file | ROM_BASE_RP2040);
@@ -89,15 +91,13 @@ void n64_pi(void)
 	tight_loop_contents();
     }
 
-    uint32_t last_addr = 0;
-    uint32_t last_ea_bank = 0;
     uint32_t word;
 
     uint32_t addr = pio_sm_get_blocking(pio, 0);
     do {
 	if (addr == 0) {
 	    //READ
-	    if ((last_addr == 0x10000000) && (last_ea_bank==0)) {
+	    if ((last_addr == 0x10000000)) {
 		word = 0x3780;
 		pio_sm_put(pio, 0, swap8(word));
 		last_addr += 2;
@@ -121,8 +121,8 @@ void n64_pi(void)
 		    uint32_t ea_bank = last_addr & 0x03000000;
 		    if(ea_bank != last_ea_bank) {
 			uint8_t page = (ea_bank>>24)/* & 3*/;
-			flash_set_ea_reg_light(page);
-			rom_file_16 = (uint16_t *) (rom_start[page]);
+			// flash_set_ea_reg_light(page);
+			// rom_file_16 = (uint16_t *) (rom_start[page]);
 			last_ea_bank = ea_bank;
 		    }
 		    word = rom_file_16[(last_addr & 0xFFFFFF) >> 1];

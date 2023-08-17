@@ -88,14 +88,24 @@ static void CicRound(unsigned char *);
 static void Cic6105Algo(void);
 
 /* Select SEED and CHECKSUM here */
-const unsigned char _CicSeed = CIC6102_SEED;
+unsigned char _CicSeed = CIC6102_SEED;
 // const unsigned char _CicSeed = CIC6105_SEED;
 
-const unsigned char _CicChecksum[] = {
-    CIC6102_CHECKSUM
+unsigned char _CicChecksumTable[][12] = {
+    { CIC6102_CHECKSUM },
+    { CIC6103_CHECKSUM },
+    { CIC6105_CHECKSUM },
+    { CIC6106_CHECKSUM },
+    { CIC7102_CHECKSUM },
     // CIC6105_CHECKSUM
 };
+unsigned char* _CicChecksum = _CicChecksumTable[0];
 
+void select_cic(int idx){
+    _CicSeed = CIC6105_SEED;
+    _CicChecksum = _CicChecksumTable[4];
+    // memcpy(_CicChecksum, CIC6106_CHECKSUM, 12);
+}
 
 /* NTSC initial RAM */
 const unsigned char _CicRamInitNtsc[] = {

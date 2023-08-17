@@ -38,7 +38,7 @@ static const struct flash_chip {
     uint16_t pi_bus_freq;
     const char *name;
 } flash_chip[] = {
-    { 0xef, 0x4020, 4, 16, 190000, 0x4085, "W25Q512" },
+    { 0xef, 0x4020, 4, 16, 190000, 0x4030, "W25Q512" },
     { 0xef, 0x4019, 2, 16, 256000, 0x4022, "W25Q256" },
     { 0xef, 0x4018, 1, 16, 256000, 0x4022, "W25Q128" },
     { 0xef, 0x4017, 1, 8 , 256000, 0x4022, "W25Q64"  },
@@ -159,8 +159,12 @@ int main(void)
 
     for(uint8_t j=0;j<rom_pages;j++){
        flash_set_ea_reg_light(j);
-        for(int i=0;i<16;i++){
-            printf("%02x ", ((uint8_t*)ROM_BASE_RP2040)[i]);
+        for(int i=0;i<8;i++){
+            printf("%02x ", ((uint8_t*)ROM_BASE_RP2040)[i+32]);
+        }
+	
+        for(int i=0;i<8;i++){
+            printf("%c", ((uint8_t*)ROM_BASE_RP2040)[i+32]);
         }
         printf(": Flash bank %d\n",j);
     }

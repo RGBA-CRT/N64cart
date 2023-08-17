@@ -626,6 +626,12 @@ void ep1_out_handler(uint8_t *buf, uint16_t len) {
 	    tmp->pages = rom_pages;
 	    tmp->address = rom_start[0];
 	    tmp->length = rom_size[0];
+        // select_cic(0);
+        
+        extern uint32_t last_addr;
+        extern uint32_t last_ea_bank;
+        printf("last addr = %08x\n", last_ea_bank + last_addr);
+        // }
 	} else {
 	    printf("Unsupported operation tag %08X\n", flash_header.type);
 	    tmp->type = DATA_UNKNOWN;
