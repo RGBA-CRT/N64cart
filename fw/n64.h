@@ -30,3 +30,6 @@
 #define N64_INT (27)
 
 #define LED_PIN (25)
+
+
+#define ROM_BASE_RP2040 XIP_NOCACHE_NOALLOC_BASE

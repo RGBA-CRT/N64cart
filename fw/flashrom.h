@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+void flash_init();
+
 void flash_set_ea_reg(uint8_t addr);
 void flash_set_ea_reg_light(uint8_t addr);
 

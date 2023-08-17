@@ -147,11 +147,13 @@ int main(void)
     gpio_init(LED_PIN);
     gpio_set_dir(LED_PIN, GPIO_OUT);
 
-    flash_set_ea_reg(0);
     setup_sysconfig();
 
     stdio_init_all();
     stdio_uart_init_full(UART_ID, BAUD_RATE, UART_TX_PIN, UART_RX_PIN);
+
+    flash_init();
+    flash_set_ea_reg(0);
 
     for(int i=0;i<0x100;i++){
         printf("%02x ", ((uint8_t*)XIP_SSI_BASE)[i]);
@@ -171,10 +173,19 @@ int main(void)
 
     memcpy(sram_8, n64_sram, SRAM_1MBIT_SIZE);
 
-    flash_set_ea_reg(0x01);
-    printf("------- %d\n", flash_get_ea_reg());
-    flash_set_ea_reg_light(0x03);
-    printf("------- %d\n", flash_get_ea_reg());
+
+    for(uint8_t j=0;j<rom_pages;j++){
+       flash_set_ea_reg_light(j);
+        for(int i=0;i<16;i++){
+            printf("%02x ", ((uint8_t*)ROM_BASE_RP2040)[i]);
+        }
+        printf(": Flash bank %d\n",j);
+    }
+
+    // flash_set_ea_reg(0x01);
+    // printf("------- %d\n", flash_get_ea_reg());
+    // flash_set_ea_reg_light(0x03);
+    // printf("------- %d\n", flash_get_ea_reg());
 
 
     multicore_launch_core1(n64_pi);

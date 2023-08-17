@@ -72,8 +72,8 @@ uint16_t get_pi_bus_freq(void)
 
 void n64_pi(void)
 {
-    rom_file_16 = (uint16_t *) rom_file;
-    rom_jpeg_16 = (uint16_t *) (XIP_BASE + jpeg_start);
+    rom_file_16 = (uint16_t *) rom_file | ROM_BASE_RP2040;
+    rom_jpeg_16 = (uint16_t *) (ROM_BASE_RP2040 + jpeg_start);
 
     PIO pio = pio0;
     pio_clear_instruction_memory(pio);
@@ -125,7 +125,7 @@ void n64_pi(void)
 				}else{
 					flash_set_ea_reg_light(page);
 				}
-				rom_file_16 = (uint16_t *) (0x10000000 + rom_start[page]);
+				rom_file_16 = (uint16_t *) (ROM_BASE_RP2040 + rom_start[page]);
 			last_ea_bank = ea_bank;
 		    }
 		    word = rom_file_16[(last_addr & 0xFFFFFF) >> 1];
@@ -192,7 +192,7 @@ void n64_pi(void)
 	    } else if (last_addr == 0x1fd0100e) {
 		int page = (addr >> 16);
 		if (page < rom_pages) {
-		    rom_file_16 = (uint16_t *) (0x10000000 + rom_start[page]);
+		    rom_file_16 = (uint16_t *) (ROM_BASE_RP2040 + rom_start[page]);
 		    flash_set_ea_reg(page);
 		}
 	    }

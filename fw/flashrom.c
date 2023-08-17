@@ -1,3 +1,5 @@
+// note: このコードはW25Qシリーズに合わせて最適化されています。他のFlashを使う際には見直す必要があります。
+//       汎用性に気を使ったコードはオリジナル(fork元)を確認してください。
 #include <stdio.h>
 
 #include "flashrom.h"
@@ -37,7 +39,7 @@ static void __no_inline_not_in_flash_func(flash_enable_xip_via_boot2)(void) {
 }
 #endif
 
-static void __no_inline_not_in_flash_func(flash_cs_force)(bool high) {
+static void inline (flash_cs_force)(bool high) {
     uint32_t field_val = high ?
         IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_VALUE_HIGH :
         IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_VALUE_LOW;
@@ -47,7 +49,7 @@ static void __no_inline_not_in_flash_func(flash_cs_force)(bool high) {
     );
 }
 
-static void __no_inline_not_in_flash_func(xflash_do_cmd_internal)(const uint8_t *txbuf, uint8_t *rxbuf, size_t count) 
+static void xflash_do_cmd_internal(const uint8_t *txbuf, uint8_t *rxbuf, size_t count) 
 {
     flash_cs_force(0);
     size_t tx_remaining = count;
@@ -72,62 +74,46 @@ static void __no_inline_not_in_flash_func(xflash_do_cmd_internal)(const uint8_t 
 
 void __no_inline_not_in_flash_func(flash_set_ea_reg)(uint8_t addr)
 {
-     rom_connect_internal_flash_fn connect_internal_flash = (rom_connect_internal_flash_fn)rom_func_lookup_inline(ROM_FUNC_CONNECT_INTERNAL_FLASH);
-    rom_flash_exit_xip_fn flash_exit_xip = (rom_flash_exit_xip_fn)rom_func_lookup_inline(ROM_FUNC_FLASH_EXIT_XIP);
-    rom_flash_flush_cache_fn flash_flush_cache = (rom_flash_flush_cache_fn)rom_func_lookup_inline(ROM_FUNC_FLASH_FLUSH_CACHE);
-    assert(connect_internal_flash && flash_exit_xip && flash_flush_cache);
-    flash_init_boot2_copyout();
-    __compiler_memory_barrier();
-    connect_internal_flash();
-    flash_exit_xip();
-    uint8_t txbuf[4];
-    uint8_t rxbuf[4];
+//      rom_connect_internal_flash_fn connect_internal_flash = (rom_connect_internal_flash_fn)rom_func_lookup_inline(ROM_FUNC_CONNECT_INTERNAL_FLASH);
+//     rom_flash_exit_xip_fn flash_exit_xip = (rom_flash_exit_xip_fn)rom_func_lookup_inline(ROM_FUNC_FLASH_EXIT_XIP);
+//     rom_flash_flush_cache_fn flash_flush_cache = (rom_flash_flush_cache_fn)rom_func_lookup_inline(ROM_FUNC_FLASH_FLUSH_CACHE);
+//     assert(connect_internal_flash && flash_exit_xip && flash_flush_cache);
+//     flash_init_boot2_copyout();
+//     __compiler_memory_barrier();
+//     connect_internal_flash();
+//     flash_exit_xip();
+//     uint8_t txbuf[4];
+//     uint8_t rxbuf[4];
 
-    //https://github.com/raspberrypi/pico-bootrom/blob/ef22cd8ede5bc007f81d7f2416b48db90f313434/bootrom/program_flash_generic.c#L93
+//     //https://github.com/raspberrypi/pico-bootrom/blob/ef22cd8ede5bc007f81d7f2416b48db90f313434/bootrom/program_flash_generic.c#L93
 
-   txbuf[0] = 0xc8;
-   xflash_do_cmd_internal(txbuf, rxbuf, 2);
-   printf("EA register %02X\n", rxbuf[1]);
+//    txbuf[0] = 0xc8;
+//    xflash_do_cmd_internal(txbuf, rxbuf, 2);
+//    printf("EA register %02X\n", rxbuf[1]);
 
-    txbuf[0] = 0x06;
-    xflash_do_cmd_internal(txbuf, rxbuf, 1);
-   txbuf[0] = 0x05;
-   xflash_do_cmd_internal(txbuf, rxbuf, 2);
-   printf("Status register %02X\n", rxbuf[1]);
+//     txbuf[0] = 0x06;
+//     xflash_do_cmd_internal(txbuf, rxbuf, 1);
+//    txbuf[0] = 0x05;
+//    xflash_do_cmd_internal(txbuf, rxbuf, 2);
+//    printf("Status register %02X\n", rxbuf[1]);
 
-    txbuf[0] = 0xc5;
-    txbuf[1] = addr;
-    xflash_do_cmd_internal(txbuf, rxbuf, 2);
+//     txbuf[0] = 0xc5;
+//     txbuf[1] = addr;
+//     xflash_do_cmd_internal(txbuf, rxbuf, 2);
 
-    txbuf[0] = 0x04;
-    xflash_do_cmd_internal(txbuf, rxbuf, 1);
+//     // lightのためにWrite Disableしない
+//     // txbuf[0] = 0x04;
+//     // xflash_do_cmd_internal(txbuf, rxbuf, 1);
 
-   txbuf[0] = 0xc8;
-   xflash_do_cmd_internal(txbuf, rxbuf, 2);
-   printf("EA register %02X\n", rxbuf[1]);
-    flash_flush_cache();
-    flash_enable_xip_via_boot2();
+//    txbuf[0] = 0xc8;
+//    xflash_do_cmd_internal(txbuf, rxbuf, 2);
+//    printf("EA register %02X\n", rxbuf[1]);
+//     flash_flush_cache();
+//     flash_enable_xip_via_boot2();
+    flash_set_ea_reg_light(addr);
 }
 
-void flash_set_ea_reg_light(uint8_t addr)
-{
-    // flash_init_boot2_copyout();
-    // __compiler_memory_barrier();
-    // connect_internal_flash();
-    // flash_exit_xip();
-    rom_flash_flush_cache_fn flash_flush_cache = (rom_flash_flush_cache_fn)rom_func_lookup_inline(ROM_FUNC_FLASH_FLUSH_CACHE);
-    
-    uint8_t txbuf[8] = {0};
-    uint8_t rxbuf[8]={0};
-
-    printf("iospi = %x\n",ioqspi_hw->io[1].ctrl & IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_BITS);
-    for(int i=0;i<0x100;i++){
-        printf("%02x ", ((uint8_t*)XIP_BASE)[i]);
-    }
-    printf(": XIP ACCESS pre\n");
-
-    uint32_t ctrl_back = ssi_hw->ctrlr0;
-    uint32_t spi_ctrl_back = ssi_hw->spi_ctrlr0;
+void W25Q_enter_ommand_mode(){
     const uint32_t qspi_txrx =
         (7 << SSI_CTRLR0_DFS_32_LSB) | /* 8 bits per data frame */ 
         (SSI_CTRLR0_TMOD_VALUE_TX_AND_RX << SSI_CTRLR0_TMOD_LSB) | /* Ena TXRX*/ 
@@ -144,48 +130,21 @@ void flash_set_ea_reg_light(uint8_t addr)
     ssi_hw->ctrlr0 = qspi_txrx;   
     ssi_hw->spi_ctrlr0 = std_spi_ctrlr;    
     
-    ssi_hw->ser = 1;
-    // Re-enable
     ssi_hw->ssienr = 1;
+}
 
-   txbuf[0] = 0x9f;
-   xflash_do_cmd_internal(txbuf, rxbuf, 4);
+void xip_enter_command_mode(){
 
-    // for(int i=0;i<8;i++){
-    //     printf("%02x ", ((uint8_t*)rxbuf)[i]);
-    // }
-    // printf(": QSPI READ DEVICE ID\n");
-   
-    // for(int i=0;i<0x100;i++){
-    //     printf("%02x ", ((uint8_t*)XIP_SSI_BASE)[i]);
-    // }
-    // printf(": SSI REG DUMP\n");
-    
-   
-//    txbuf[0] = 0xc8;
-//    xflash_do_cmd_internal(txbuf, rxbuf, 2);
-//    printf("EA register %02X\n", rxbuf[1]);
+    W25Q_enter_ommand_mode();
 
-    txbuf[0] = 0x06;
-    xflash_do_cmd_internal(txbuf, rxbuf, 1);
-//    txbuf[0] = 0x05;
-//    xflash_do_cmd_internal(txbuf, rxbuf, 2);
-//    printf("Status register %02X\n", rxbuf[1]);
+    // Stop XIP cs control. by dummy command
+    const uint8_t txbuf = 0x9f;
+    uint8_t rxbuf;
+    xflash_do_cmd_internal(&txbuf, &rxbuf, 1);
+}
 
-    txbuf[0] = 0xc5;
-    txbuf[1] = addr;
-    xflash_do_cmd_internal(txbuf, rxbuf, 2);
-
-    txbuf[0] = 0x04;
-    xflash_do_cmd_internal(txbuf, rxbuf, 1);
-
-//    txbuf[0] = 0xc8;
-//    xflash_do_cmd_internal(txbuf, rxbuf, 2);
-//    printf("EA register %02X\n", rxbuf[1]);
-    // ssi_hw->ser = 0;
-
-    // flash_enable_xip_via_boot2();
-
+void xip_exit_command_mode(){
+    // https://github.com/raspberrypi/pico-sdk/blob/6a7db34ff63345a7badec79ebea3aaef1712f374/src/rp2_common/boot_stage2/boot2_w25q080.S
     /* flash_enable_xip_via_boot2 Details:
      * Check status register 2 to determine if QSPI mode is enabled, and perform an SR2 programming cycle if necessary.
      * ステータス レジスタ 2 をチェックして QSPI モードが有効かどうかを判断し、必要に応じて SR2 プログラミング サイクルを実行します。
@@ -215,30 +174,24 @@ void flash_set_ea_reg_light(uint8_t addr)
     (void) ssi_hw->icr;
     ssi_hw->ctrlr0 = dummy_read_ctrl0;    
     ssi_hw->spi_ctrlr0 = dummy_read_spi_ctrl0;    
-    printf("iospi = %x\n",ioqspi_hw->io[1].ctrl & IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_BITS);
+    // printf("iospi = %x\n",ioqspi_hw->io[1].ctrl & IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_BITS);
  
     hw_write_masked(&ioqspi_hw->io[1].ctrl,
         IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_VALUE_NORMAL << IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_LSB,
         IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_BITS
     );
-    printf("iospi = %x\n",ioqspi_hw->io[1].ctrl & IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_BITS);
+    // printf("iospi = %x\n",ioqspi_hw->io[1].ctrl & IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_BITS);
     ssi_hw->ssienr = 1;
 
     // flash_cs_force(0);
     ssi_hw->dr0 = 0xEB;
     ssi_hw->dr0 = 0xA0;
 
-    // txbuf[0] = 0xc5;
-    // txbuf[1] = addr;
-    // xflash_do_cmd_internal(txbuf, rxbuf, 2);
-    while((ssi_hw->sr & (SSI_SR_TFE_BITS | SSI_SR_BUSY_BITS)) == SSI_SR_TFE_BITS){
-
-    printf("sr=%x\n", ssi_hw->sr);
-    }
-    printf("dr0=%x\n", ssi_hw->dr0);
+    // dummy readコマンド街
+    while((ssi_hw->sr & (SSI_SR_TFE_BITS | SSI_SR_BUSY_BITS)) != SSI_SR_TFE_BITS);
 
 
-    flash_flush_cache();
+    // NEXT, XIP用にレジスタを構成
 
     const uint32_t xip_spi_ctrl0 =
     (0xa0                      /* Mode bits to keep flash in continuous read mode */ 
@@ -249,24 +202,123 @@ void flash_set_ea_reg_light(uint8_t addr)
         << SSI_SPI_CTRLR0_INST_L_LSB) | 
     (SSI_SPI_CTRLR0_TRANS_TYPE_VALUE_2C2A      /* Send Address in Quad I/O mode (and Command but that is zero bits long) */ 
         << SSI_SPI_CTRLR0_TRANS_TYPE_LSB);
+      
 
     ssi_hw->ssienr = 0;
     (void) ssi_hw->sr;
     (void) ssi_hw->icr;
     ssi_hw->spi_ctrlr0 = xip_spi_ctrl0;    
+      
+    // hw_write_masked(&ioqspi_hw->io[1].ctrl,
+    //     IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_VALUE_NORMAL << IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_LSB,
+    //     IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_BITS
+    // );
+
     ssi_hw->ssienr = 1;
 
+    // for(int i=0;i<32;i++){
+    //     printf("%02x ", ((uint8_t*)XIP_BASE)[i]);
+    // }
+    // printf(": XIP ACCESS after\n");
     
-    for(int i=0;i<0x100;i++){
-        printf("%02x ", ((uint8_t*)XIP_BASE)[i]);
-    }
-    printf(": XIP ACCESS after\n");
+}
+
+void flash_init(){
+    xip_enter_command_mode();
+
+    // Disable write protect is executed in normal set_ea_reg. skip here.
+    const uint8_t txbuf = 0x06;
+    uint8_t rxbuf;
+    xflash_do_cmd_internal(&txbuf, &rxbuf, 1);
+
+    xip_exit_command_mode();
+
+}
+
+#include <hardware/structs/systick.h>
+// 時刻取得関数
+inline uint32_t get_tick()
+{
+  return systick_hw->cvr;
+}
+
+// tick値の差分を計算
+static uint32_t tick_diffs(uint32_t start_time, uint32_t end_time)
+{
+  if (start_time <= end_time) {
+    // 測定時間内にreload発生
+    start_time += systick_hw->rvr + 1;
+  }
+  return start_time - end_time;
+}
+
+void inline init_tick_timer(){
+    systick_hw->csr = 0x5;
+    systick_hw->rvr = 0x00FFFFFF;
+}
+
+#include "hardware/structs/xip_ctrl.h"
+void inline static flash_trigger_flush_cache(){
+    xip_ctrl_hw->flush = 1;
+}
+void inline static flash_wait_flush_cache(){
+    // Read blocks until flush completion
+    (void) xip_ctrl_hw->flush;
+    // Enable the cache
+    hw_set_bits(&xip_ctrl_hw->ctrl, XIP_CTRL_EN_BITS);
+}
+
+// #define LATCODE(x) x
+#define LATCODE(x)
+
+void flash_set_ea_reg_light(uint8_t addr)
+{    
+    // flash_trigger_flush_cache();
+
+    LATCODE(uint32_t tick[10]);
+    LATCODE(size_t ti = 0);
+
+    uint8_t txbuf[2] = {0};
+    uint8_t rxbuf[2];
+
+    LATCODE(tick[ti++] = get_tick());
+    LATCODE(init_tick_timer());
+
+    LATCODE(tick[ti++] = get_tick());
+    xip_enter_command_mode();
+   
+    LATCODE(tick[ti++] = get_tick());
+    // Disable write protect is executed in normal set_ea_reg. skip here.
+    txbuf[0] = 0x06;
+    xflash_do_cmd_internal(txbuf, rxbuf, 1);
+    LATCODE(tick[ti++] = get_tick());
+
+    txbuf[0] = 0xc5;
+    txbuf[1] = addr;
+    xflash_do_cmd_internal(txbuf, rxbuf, 2);
+    LATCODE(tick[ti++] = get_tick());
+
+    // Enable write protect is not necesury.
+    // txbuf[0] = 0x04;
+    // xflash_do_cmd_internal(txbuf, rxbuf, 1);
+   
+    // flash_flush_cache();
+    xip_exit_command_mode();
+    LATCODE(tick[ti++] = get_tick());
+
+    // flash_wait_flush_cache();
+    LATCODE(tick[ti++] = get_tick());
 
     // printf("# flash EA REG %d\n", flash_get_ea_reg());
+    
+    LATCODE(printf("lat(%d) = init,%d ent,%d wp,%d ea,%d exi,%d flu,%d \n", ti, tick_diffs(tick[0], tick[1])
+        , tick_diffs(tick[1], tick[2]), tick_diffs(tick[2], tick[3]), tick_diffs(tick[3], tick[4]), tick_diffs(tick[4], tick[5])
+        , tick_diffs(tick[5], tick[6])));
 }
 
 uint8_t __no_inline_not_in_flash_func(flash_get_ea_reg)(void)
 {
+#if 0
     rom_connect_internal_flash_fn connect_internal_flash = (rom_connect_internal_flash_fn)rom_func_lookup_inline(ROM_FUNC_CONNECT_INTERNAL_FLASH);
     rom_flash_exit_xip_fn flash_exit_xip = (rom_flash_exit_xip_fn)rom_func_lookup_inline(ROM_FUNC_FLASH_EXIT_XIP);
     rom_flash_flush_cache_fn flash_flush_cache = (rom_flash_flush_cache_fn)rom_func_lookup_inline(ROM_FUNC_FLASH_FLUSH_CACHE);
@@ -285,4 +337,7 @@ uint8_t __no_inline_not_in_flash_func(flash_get_ea_reg)(void)
     flash_enable_xip_via_boot2();
 
     return rxbuf[1];
+#else
+    return 0xFF;
+#endif
 }
