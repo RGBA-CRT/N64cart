@@ -609,7 +609,7 @@ void ep1_out_handler(uint8_t *buf, uint16_t len) {
 		flash_buffer_pos = 0;
 		flash_received_size = 0;
 		if (flash_header.type == DATA_WRITE) {
-		    flash_offset = rom_start[flash_header.pages];
+		    flash_offset = rom_start[flash_header.pages] - ROM_BASE_RP2040;
             printf("before set ea reg. bank=%d\n", flash_header.pages);
             printf("current ea reg = %d\n", flash_get_ea_reg());
 		    flash_set_ea_reg(flash_header.pages);
@@ -637,18 +637,18 @@ void ep1_out_handler(uint8_t *buf, uint16_t len) {
 	    flash_received_size += len;
 	    if (flash_buffer_pos == FLASH_BUFFER_SIZE) {
 		if (flash_received_size % 1024 == 0) {
-//		    printf("Received %d of %d          \r", flash_received_size, flash_header.length);
+		    // printf("Received %d of %d          \n", flash_received_size, flash_header.length);
 		}
 
 //		uint32_t ints = save_and_disable_interrupts();
 
-//		printf("flash offset %08X\n", flash_offset);
+		// printf("flash offset %08X\n", flash_offset);
 		if (flash_offset % 4096 == 0) {
-//		    printf("Erase flash %08X\r", flash_offset);
+		    // printf("Erase flash %08X\n", flash_offset);
 		    flash_range_erase(flash_offset, 4096);
 		}
 
-//		printf("Write flash             \r");
+		// printf("Write flash             \n");
 		flash_range_program(flash_offset, flash_buffer, FLASH_BUFFER_SIZE);
 
 //		restore_interrupts (ints);

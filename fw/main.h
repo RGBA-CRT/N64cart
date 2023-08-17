@@ -26,4 +26,6 @@ extern uint8_t sram_8[];
 void n64_save_sram(void);
 #endif
 
+#define ROM_BASE_RP2040 XIP_NOCACHE_NOALLOC_BASE
+
 #endif

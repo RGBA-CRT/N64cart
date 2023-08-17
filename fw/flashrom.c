@@ -329,6 +329,8 @@ void flash_set_ea_reg_light(uint8_t addr)
     LATCODE(printf("lat(%d) = init,%d ent,%d wp,%d ea,%d exi,%d flu,%d \n", ti, tick_diffs(tick[0], tick[1])
         , tick_diffs(tick[1], tick[2]), tick_diffs(tick[2], tick[3]), tick_diffs(tick[3], tick[4]), tick_diffs(tick[4], tick[5])
         , tick_diffs(tick[5], tick[6])));
+        
+    // printf("# flash EA REG %d\n", addr);
 }
 
 uint8_t __no_inline_not_in_flash_func(flash_get_ea_reg)(void)
