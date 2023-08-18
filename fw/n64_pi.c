@@ -17,6 +17,7 @@
 #include "main.h"
 #include "n64_pi.pio.h"
 #include "n64.h"
+#include "cic.h"
 
 #include "rom.h"
 
@@ -28,20 +29,6 @@ static uint16_t pi_bus_freq = 0x40ff;
 #if PI_SRAM
 static uint16_t *sram_16 = (uint16_t *) sram_8;
 
-static inline uint32_t resolve_sram_address(uint32_t address)
-{
-    uint32_t bank = (address >> 18) & 0x3;
-    uint32_t resolved_address;
-
-    if (bank) {
-        resolved_address = address & (SRAM_256KBIT_SIZE - 1);
-        resolved_address |= bank << 15;
-    } else {
-        resolved_address = address & (SRAM_1MBIT_SIZE - 1);
-    }
-
-    return resolved_address;
-}
 #endif
 
 static inline uint32_t swap16(uint32_t value)
@@ -120,9 +107,14 @@ void n64_pi(void)
 		do {
 		    uint32_t ea_bank = last_addr & 0x03000000;
 		    if(ea_bank != last_ea_bank) {
-			uint8_t page = (ea_bank>>24)/* & 3*/;
+			if(last_addr >= 0x14000000){
+				printf("ill access: %x\n", last_addr);
+			}
+			uint8_t page = (ea_bank>>24) /*& 3*/;
 			// flash_set_ea_reg_light(page);
 			// rom_file_16 = (uint16_t *) (rom_start[page]);
+			
+			// gpio_put(LED_PIN, page ? 1 :0);
 			last_ea_bank = ea_bank;
 		    }
 		    word = rom_file_16[(last_addr & 0xFFFFFF) >> 1];
@@ -136,7 +128,7 @@ void n64_pi(void)
 #if PI_SRAM
 	    } else if (last_addr >= 0x08000000 && last_addr <= 0x0FFFFFFF) {
 		do {
-		    word = sram_16[resolve_sram_address(last_addr) >> 1];
+		    word = sram_16[(last_addr & (SRAM_SIZE-1)) >> 1];
 
 		    pio_sm_put(pio, 0, word);
 		    last_addr += 2;
@@ -173,11 +165,12 @@ void n64_pi(void)
 #if PI_SRAM
 	    if (last_addr >= 0x08000000 && last_addr <= 0x0FFFFFFF) {
 		do {
-		    sram_16[resolve_sram_address(last_addr) >> 1] = addr >> 16;
+		    sram_16[(last_addr & (SRAM_SIZE-1)) >> 1] = addr >> 16;
 
 		    last_addr += 2;
 		    addr = pio_sm_get_blocking(pio, 0);
 		} while (addr & 0x01);
+		g_is_n64_sram_write = true;
 
 		continue;
 	    } else 
@@ -191,6 +184,10 @@ void n64_pi(void)
 		if (page < rom_pages) {
 		    rom_file_16 = (uint16_t *) (rom_start[page]);
 		    flash_set_ea_reg(page);
+		    
+		    enum CicType type = cic_easy_detect(*((uint32_t*)(&rom_file_16[CIC_DETECT_OFFSET/2])));
+		    printf("CIC type: %s\n", cic_get_name(type));
+		    select_cic(type);
 		}
 	    }
 

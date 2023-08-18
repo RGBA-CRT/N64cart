@@ -13,6 +13,7 @@
 #include "pico/stdio.h"
 #include "pico/multicore.h"
 #include "hardware/clocks.h"
+#include "hardware/structs/ssi.h"
 #include "hardware/flash.h"
 #include "flashrom.h"
 
@@ -29,41 +30,13 @@ volatile uint32_t rom_size[4];
 
 static const char *rom_chip_name = NULL;
 
-static const struct flash_chip {
-    uint8_t mf;
-    uint16_t id;
-    uint8_t rom_pages;
-    uint8_t rom_size;
-    uint32_t sys_freq;
-    uint16_t pi_bus_freq;
-    const char *name;
-} flash_chip[] = {
-    { 0xef, 0x4020, 4, 16, 190000, 0x4030, "W25Q512" },
-    { 0xef, 0x4019, 2, 16, 256000, 0x4022, "W25Q256" },
-    { 0xef, 0x4018, 1, 16, 256000, 0x4022, "W25Q128" },
-    { 0xef, 0x4017, 1, 8 , 256000, 0x4022, "W25Q64"  },
-    { 0xef, 0x4016, 1, 4 , 256000, 0x4022, "W25Q32"  },
-    { 0xef, 0x4015, 1, 2 , 256000, 0x4022, "W25Q16"  }
-};
-
 extern char __flash_binary_end;
+
+static const struct FlashChip* g_flash_info = NULL;
 
 static void setup_sysconfig(void)
 {
-    uint8_t txbuf[4];
-    uint8_t rxbuf[4];
     uintptr_t fw_binary_end = (uintptr_t) &__flash_binary_end;
-
-    txbuf[0] = 0x9f;
-
-//    printf("Detect ROM chip\n");
-
-    flash_do_cmd(txbuf, rxbuf, 4);
-
-//    printf("Flash jedec id %02X %02X %02X\n", rxbuf[1], rxbuf[2], rxbuf[3]);
-
-    uint8_t mf = rxbuf[1];
-    uint16_t id = (rxbuf[2] << 8) | rxbuf[3];
 
     jpeg_start = ((fw_binary_end - XIP_BASE) + 4095) & ~4095;
 
@@ -71,40 +44,41 @@ static void setup_sysconfig(void)
     rom_start[0] = ROM_BASE_RP2040 + jpeg_start + 64 * 1024;
     rom_size[0] = 2 * 1024 * 1024;
 
-    for (int i = 0; i < sizeof(flash_chip) / sizeof(struct flash_chip); i++) {
-	if (flash_chip[i].mf == mf && flash_chip[i].id == id) {
-	    rom_pages = flash_chip[i].rom_pages;
-	    rom_size[0] = flash_chip[i].rom_size * 1024 * 1024;
+    g_flash_info = flash_get_info();
+    if(g_flash_info){
+	rom_pages = g_flash_info->rom_pages;
+	rom_size[0] = g_flash_info->rom_size * 1024 * 1024;
 
-	    for (int p = 1; p < flash_chip[i].rom_pages; p++) {
+	for (int p = 1; p < g_flash_info->rom_pages; p++) {
 		rom_start[p] = ROM_BASE_RP2040 + 0;
-		rom_size[p] = flash_chip[i].rom_size * 1024 * 1024;
-	    }
-
-	    set_sys_clock_khz(flash_chip[i].sys_freq, true);
-	    set_pi_bus_freq(flash_chip[i].pi_bus_freq);
-	    rom_chip_name = flash_chip[i].name;
-	    break;
+		rom_size[p] = g_flash_info->rom_size * 1024 * 1024;
 	}
-    }
+	
+	flash_set_config(g_flash_info);
+	set_sys_clock_khz(g_flash_info->sys_freq, true);
+	set_pi_bus_freq(g_flash_info->pi_bus_freq);
+	rom_chip_name = g_flash_info->name;
+     }
+
 }
 
 static void show_sysinfo(void)
 {
-    if (rom_chip_name == NULL) {
+    if (g_flash_info == NULL) {
 	printf("Unknown ROM chip, system stopped!\n");
 	while(1) {}
     }
 
-    printf("ROM chip           : %s\n", rom_chip_name);
-    printf("System frequency   : %d\n", clock_get_hz(clk_sys) / 1000);
+    printf("ROM chip           : %s\n", g_flash_info->name);
+    int clock_khz = clock_get_hz(clk_sys) / 1000;
+    printf("System frequency   : %d.%03d MHz\n", clock_khz / 1000, clock_khz % 1000);
     printf("PI bus freq config : %04X\n\n", get_pi_bus_freq());
     printf("Available ROM pages:\n");
 
     for (int i = 0; i < rom_pages; i++) {
 	printf("Page %d\n", i);
 	printf(" Address %08X\n", rom_start[i]);
-	printf(" Size    %d bytes\n", rom_size[i] - rom_start[i]);
+	printf(" Size    %d bytes\n", rom_size[i] - (rom_start[i] - ROM_BASE_RP2040));
     }
 }
 
@@ -115,17 +89,25 @@ void n64_pi_restart(void)
 }
 
 #if PI_SRAM
-const uint8_t __aligned(4096) __in_flash("n64_sram") n64_sram[SRAM_1MBIT_SIZE];
+const uint8_t __aligned(4096) __in_flash("n64_sram") n64_sram[SRAM_SIZE];
 
-uint8_t sram_8[SRAM_1MBIT_SIZE];
+uint8_t sram_8[SRAM_SIZE];
+
+bool g_is_n64_sram_write;
 
 void n64_save_sram(void)
 {
     uint32_t offset = ((uint32_t) n64_sram) - XIP_BASE;
     uint32_t count = sizeof(n64_sram);
 
+    printf("backup SRAM to Flash...");
+
     flash_range_erase(offset, count);
     flash_range_program(offset, sram_8, count);
+    
+    flash_set_config(g_flash_info);
+    
+    printf("done.\n");
 }
 #endif
 
@@ -152,10 +134,18 @@ int main(void)
     stdio_init_all();
     stdio_uart_init_full(UART_ID, BAUD_RATE, UART_TX_PIN, UART_RX_PIN);
 
+//     if(!g_flash_info){
+// 	printf("unsupported flash type. abort.\n");
+// 	while(1);
+//     }
+    show_sysinfo();
+
     flash_init_ea();
     flash_set_ea_reg(0);
 
-    memcpy(sram_8, n64_sram, SRAM_1MBIT_SIZE);
+    g_is_n64_sram_write = false;
+
+    memcpy(sram_8, n64_sram, SRAM_SIZE);
 
     for(uint8_t j=0;j<rom_pages;j++){
        flash_set_ea_reg_light(j);
@@ -177,7 +167,22 @@ int main(void)
 
     multicore_launch_core1(n64_pi);
 
-    cic_main();
+    while (1) {
+	/* main loop, N64 power on-offで1サイクル */
+
+	/* reset to manu rom */
+        flash_set_ea_reg(0);
+	select_cic(CicType6102);
+
+        cic_run();
+
+	/* after n64 power off */
+	if(g_is_n64_sram_write) {
+        	flash_set_ea_reg(0);
+		n64_save_sram();
+		g_is_n64_sram_write = false;
+	}
+    }
 
     return 0;
 }

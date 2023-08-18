@@ -87,11 +87,17 @@ static void EncodeRound(unsigned char index);
 static void CicRound(unsigned char *);
 static void Cic6105Algo(void);
 
-/* Select SEED and CHECKSUM here */
-unsigned char _CicSeed = CIC6102_SEED;
-// const unsigned char _CicSeed = CIC6105_SEED;
-
-unsigned char _CicChecksumTable[][12] = {
+static const unsigned char _CicSeedTable[_CicTypeMax_] = {
+    CIC6101_SEED,
+    CIC6102_SEED,
+    CIC6103_SEED,
+    CIC6105_SEED,
+    CIC6106_SEED,
+    CIC7102_SEED,
+    // CIC6105_CHECKSUM
+};
+static const unsigned char _CicChecksumTable[_CicTypeMax_][12] = {
+    { CIC6101_CHECKSUM },
     { CIC6102_CHECKSUM },
     { CIC6103_CHECKSUM },
     { CIC6105_CHECKSUM },
@@ -99,13 +105,12 @@ unsigned char _CicChecksumTable[][12] = {
     { CIC7102_CHECKSUM },
     // CIC6105_CHECKSUM
 };
-unsigned char* _CicChecksum = _CicChecksumTable[0];
 
-void select_cic(int idx){
-    _CicSeed = CIC6105_SEED;
-    _CicChecksum = _CicChecksumTable[4];
-    // memcpy(_CicChecksum, CIC6106_CHECKSUM, 12);
-}
+/* Select SEED and CHECKSUM here */
+unsigned char _CicSeed = CIC6102_SEED;
+// const unsigned char _CicSeed = CIC6105_SEED;
+
+const unsigned char* _CicChecksum = _CicChecksumTable[0];
 
 /* NTSC initial RAM */
 const unsigned char _CicRamInitNtsc[] = {
@@ -499,8 +504,7 @@ static void InitRam(unsigned char isPal)
     }
 }
 
-
-static void cic_run(void)
+void cic_run(void)
 {
     unsigned char isPal;
 
@@ -578,11 +582,47 @@ static void cic_run(void)
     printf("CIC Emulator core finished!\r\n");
 }
 
-extern void flash_set_ea_reg(uint8_t ea);
-void cic_main(void)
-{
-    while (1) {
-        flash_set_ea_reg(0);
-        cic_run();
+
+void select_cic(enum CicType type){
+    _CicSeed = _CicSeedTable[type];
+    _CicChecksum = _CicChecksumTable[type];
+    // memcpy(_CicChecksum, CIC6106_CHECKSUM, 12);
+}
+
+enum CicType cic_easy_detect(uint32_t keydata){
+    enum CicType ret = _CicTypeMax_;
+    switch(keydata){
+        case 0x01006b31:
+            ret = CicType6101;
+            break;
+        case 0xe0ff6015:
+            ret = CicType6102;
+            break;
+        case 0x25180000:
+            ret = CicType6103;
+            break;
+        case 0x60A4013C:
+            ret = CicType6105;
+            break;
+        case 0x6ab50bc3:
+            ret = CicType6106;
+            break;
+        /* todo: add CicType7102 detection */
+        default:
+            break;
     }
+    return ret;
+}
+
+const char* cic_get_name(enum CicType type){
+    const char * const table[] = {
+        "CIC 6101",
+        "CIC 6102",
+        "CIC 6103",
+        "CIC 6105",
+        "CIC 6106",
+        "CIC 7102",
+        "Unkown CIC"
+    };
+    return table[type];
 }

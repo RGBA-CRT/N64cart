@@ -7,6 +7,8 @@
 
 #include "hardware/structs/ssi.h"
 #include "hardware/structs/ioqspi.h"
+#include "hardware/flash.h"
+#include "hardware/vreg.h"
 
 #define FLASH_BLOCK_ERASE_CMD 0xd8
 
@@ -15,6 +17,46 @@
 
 static uint32_t boot2_copyout[BOOT2_SIZE_WORDS];
 static bool boot2_copyout_valid = false;
+
+static const struct FlashChip flash_chip_table[] = {
+//     { 0xef, 0x4020, 4, 16, 190000, 0x4080, "W25Q512" },
+    { 0xef, 0x4020, 4, 16, 285000, 0x4080, 3, 2, "W25Q512" },
+    { 0xef, 0x4019, 2, 16, 256000, 0x4022, 2, 1, "W25Q256" },
+    { 0xef, 0x4018, 1, 16, 256000, 0x4022, 2, 1, "W25Q128" },
+    { 0xef, 0x4017, 1, 8 , 256000, 0x4022, 2, 1, "W25Q64"  },
+    { 0xef, 0x4016, 1, 4 , 256000, 0x4022, 2, 1, "W25Q32"  },
+    { 0xef, 0x4015, 1, 2 , 256000, 0x4022, 2, 1, "W25Q16"  }
+};
+
+const struct FlashChip* flash_get_info() {
+    
+    uint8_t txbuf[4];
+    uint8_t rxbuf[4];
+    //    printf("Detect ROM chip\n");
+    txbuf[0] = 0x9f;
+
+    flash_do_cmd(txbuf, rxbuf, 4);
+
+//    printf("Flash jedec id %02X %02X %02X\n", rxbuf[1], rxbuf[2], rxbuf[3]);
+
+    uint8_t mf = rxbuf[1];
+    uint16_t id = (rxbuf[2] << 8) | rxbuf[3];
+
+    for (int i = 0; i < sizeof(flash_chip_table) / sizeof(struct FlashChip); i++) {
+	    if (flash_chip_table[i].mf == mf && flash_chip_table[i].id == id) {
+            return &flash_chip_table[i];
+        }
+    }
+    return NULL;
+}
+
+void flash_set_config(const struct FlashChip* chip_info){
+    // vreg_set_voltage(VREG_VOLTAGE_1_10);
+    ssi_hw->ssienr = 0;
+    ssi_hw->baudr = chip_info->flash_clk_div;
+    ssi_hw->rx_sample_dly = chip_info->flash_rx_delay;
+    ssi_hw->ssienr = 1;
+}
 
 static void __no_inline_not_in_flash_func(flash_init_boot2_copyout)(void) {
     if (boot2_copyout_valid)
@@ -72,6 +114,17 @@ static void xflash_do_cmd_internal(const uint8_t *txbuf, uint8_t *rxbuf, size_t 
     flash_cs_force(1);
 }
 
+#include "hardware/structs/xip_ctrl.h"
+void inline static flash_trigger_flush_cache(){
+    xip_ctrl_hw->flush = 1;
+}
+void inline static flash_wait_flush_cache(){
+    // Read blocks until flush completion
+    (void) xip_ctrl_hw->flush;
+    // Enable the cache
+    hw_set_bits(&xip_ctrl_hw->ctrl, XIP_CTRL_EN_BITS);
+}
+
 void __no_inline_not_in_flash_func(flash_set_ea_reg)(uint8_t addr)
 {
 //      rom_connect_internal_flash_fn connect_internal_flash = (rom_connect_internal_flash_fn)rom_func_lookup_inline(ROM_FUNC_CONNECT_INTERNAL_FLASH);
@@ -111,13 +164,15 @@ void __no_inline_not_in_flash_func(flash_set_ea_reg)(uint8_t addr)
 //     flash_flush_cache();
 //     flash_enable_xip_via_boot2();
     flash_set_ea_reg_light(addr);
+    // flash_trigger_flush_cache();
+    // flash_wait_flush_cache();
 }
 
 // #define WAIT_SSI_TX() while( !(ssi_hw->sr & (SSI_SR_TFE_BITS)) )
 // #define WAIT_SSI_TX() while( (ssi_hw->sr & (SSI_SR_BUSY_BITS)) )
 #define WAIT_SSI_TX() while((ssi_hw->sr & (SSI_SR_TFE_BITS | SSI_SR_BUSY_BITS)) != SSI_SR_TFE_BITS)
 
-void inline W25Q_enter_ommand_mode(){
+void inline W25Q_enter_command_mode(){
     const uint32_t qspi_txrx =
         (7 << SSI_CTRLR0_DFS_32_LSB) | /* 8 bits per data frame */ 
         (SSI_CTRLR0_TMOD_VALUE_TX_AND_RX << SSI_CTRLR0_TMOD_LSB) | /* Ena TXRX*/ 
@@ -139,7 +194,7 @@ void inline W25Q_enter_ommand_mode(){
 
 void inline xip_enter_command_mode(){
 
-    W25Q_enter_ommand_mode();
+    W25Q_enter_command_mode();
 
     // Stop XIP cs control. by dummy command
     // const uint8_t txbuf = 0x9f;
@@ -265,16 +320,6 @@ void inline init_tick_timer(){
     systick_hw->rvr = 0x00FFFFFF;
 }
 
-#include "hardware/structs/xip_ctrl.h"
-void inline static flash_trigger_flush_cache(){
-    xip_ctrl_hw->flush = 1;
-}
-void inline static flash_wait_flush_cache(){
-    // Read blocks until flush completion
-    (void) xip_ctrl_hw->flush;
-    // Enable the cache
-    hw_set_bits(&xip_ctrl_hw->ctrl, XIP_CTRL_EN_BITS);
-}
 
 // #define LATCODE(x) x
 #define LATCODE(x)
