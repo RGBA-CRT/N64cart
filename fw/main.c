@@ -108,7 +108,7 @@ void n64_save_sram(void)
     flash_range_program(offset, sram_8, count);
     
     flash_set_config(g_flash_info);
-    
+
     printf("done.\n");
 }
 #endif
@@ -145,24 +145,26 @@ int main(void)
     flash_init_ea();
     // flash_set_ea_reg(0);
     
-    // reset bank pointer, ea reg, select cic.
-    game_select(0);
-
     g_is_n64_sram_write = false;
 
     memcpy(sram_8, n64_sram, SRAM_SIZE);
 
     for(uint8_t j=0;j<rom_pages;j++){
-       flash_set_ea_reg_light(j);
-        for(int i=0;i<8;i++){
+        game_select(j);
+    //    flash_set_ea_reg_light(j);
+        for(int i=0;i<16;i++){
             printf("%02x ", ((uint8_t*)ROM_BASE_RP2040)[i+32]);
         }
+        printf("\n");
 	
-        for(int i=0;i<8;i++){
-            printf("%c", ((uint8_t*)ROM_BASE_RP2040)[i+32]);
-        }
-        printf(": Flash bank %d\n",j);
+        // for(int i=0;i<8;i++){
+        //     printf("%c", ((uint8_t*)ROM_BASE_RP2040)[i+32]);
+        // }
+        // printf(": Flash bank %d\n",j);
     }
+
+    // reset bank pointer, ea reg, select cic.
+    game_select(0);
 
     // flash_set_ea_reg(0x01);
     // printf("------- %d\n", flash_get_ea_reg());
@@ -183,11 +185,12 @@ int main(void)
 
         cic_run();
 
-	/* after n64 power off */
-	if(g_is_n64_sram_write) {
-		n64_save_sram();
-		g_is_n64_sram_write = false;
-	}
+        /* after n64 power off */
+        if(g_is_n64_sram_write) {
+            n64_save_sram();
+            g_is_n64_sram_write = false;
+        }
+        game_select(0);
     }
 
     return 0;

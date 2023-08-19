@@ -20,7 +20,10 @@ static bool boot2_copyout_valid = false;
 
 static const struct FlashChip flash_chip_table[] = {
 //     { 0xef, 0x4020, 4, 16, 190000, 0x4080, "W25Q512" },
-    { 0xef, 0x4020, 4, 16, 285000, 0x4080, 3, 2, "W25Q512" },
+    { 0xef, 0x4020, 4, 16, (98000*3), 0x4063, 3, 2, "W25Q512" }, //ギリギリアウト
+    // { 0xef, 0x4020, 4, 16, (98000*3), 0x4067, 3, 2, "W25Q512" },
+    // { 0xef, 0x4020, 4, 16, (295000), 0x4040, 3, 2, "W25Q512" },
+    // { 0xef, 0x4020, 4, 16, (133000*2), 0x4040, 2, 2, "W25Q512" },
     { 0xef, 0x4019, 2, 16, 256000, 0x4022, 2, 1, "W25Q256" },
     { 0xef, 0x4018, 1, 16, 256000, 0x4022, 2, 1, "W25Q128" },
     { 0xef, 0x4017, 1, 8 , 256000, 0x4022, 2, 1, "W25Q64"  },
@@ -51,7 +54,7 @@ const struct FlashChip* flash_get_info() {
 }
 
 void flash_set_config(const struct FlashChip* chip_info){
-    // vreg_set_voltage(VREG_VOLTAGE_1_10);
+    vreg_set_voltage(VREG_VOLTAGE_1_10);
     ssi_hw->ssienr = 0;
     ssi_hw->baudr = chip_info->flash_clk_div;
     ssi_hw->rx_sample_dly = chip_info->flash_rx_delay;

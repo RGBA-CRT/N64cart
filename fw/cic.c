@@ -135,7 +135,7 @@ unsigned char _6105Mem[32];
 static bool check_running(void)
 {
     if (gpio_get(N64_NMI) == 0) {
-       printf("N64 NMI\n");
+       printf("PIF STOP??\n");
     }
 
     if (gpio_get(N64_COLD_RESET) == 0) {
@@ -150,19 +150,32 @@ static unsigned char ReadBit(void)
 {
     unsigned char res;
     unsigned char vin;
-
+    int c=0;
+    // #define WAIT_COUNT 100 //for 98*3 MHz
+    #define WAIT_COUNT 0
     // wait for DCLK to go low
     do {
         vin = gpio_get(N64_CIC_DCLK);
-    } while (vin && check_running());
+        if(!vin) c++;
+        else c=0;
+    } while (c<=WAIT_COUNT && check_running());
+
+    // for(int i=0;i<9004; i++){    // for cpu (100)*3MHz
+    // // for(int i=0;i<10000; i++){    // for cpu (98)*3MHz
+    //     tight_loop_contents();
+    // }
 
     // Read the data bit
     res = gpio_get(N64_CIC_DIO);
 
+    c=0;
     // wait for DCLK to go high
     do {
         vin = gpio_get(N64_CIC_DCLK);
-    } while ((!vin) && check_running());
+        if(vin) c++;
+        else c=0;
+    
+    } while (c<=WAIT_COUNT && check_running());
 
     return res ? 1 : 0;
 }
@@ -175,7 +188,6 @@ static void WriteBit(unsigned char b)
     do {
         vin = gpio_get(N64_CIC_DCLK);
     } while (vin && check_running());
-
     if (b == 0)
     {
         // Drive low
@@ -187,6 +199,7 @@ static void WriteBit(unsigned char b)
     do {
         vin = gpio_get(N64_CIC_DCLK);
     } while ((!vin) && check_running());
+        tight_loop_contents();
 
     // Disable output
     gpio_set_dir(N64_CIC_DIO, GPIO_IN);
@@ -508,7 +521,7 @@ void check_sel_button(){
     static int button_cycle = 0;
     static int game_id = 0;
     if(gpio_get(ROM_SEL_BUTTON)){ button_cycle++; } else {button_cycle=0;}
-    if(button_cycle == 500){
+    if(button_cycle == 5000){
         game_select(game_id++);
     }
 }
