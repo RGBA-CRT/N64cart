@@ -132,10 +132,18 @@ unsigned char _6105Mem[32];
 
 /* YOU HAVE TO IMPLEMENT THE LOW LEVEL GPIO FUNCTIONS ReadBit() and WriteBit() */
 
+static int nmi_count=0;
 static bool check_running(void)
 {
+    
     if (gpio_get(N64_NMI) == 0) {
-    //    printf("PIF STOP??\n");
+        nmi_count++;
+        if(nmi_count > 100){
+           printf("PIF STOP??\n");
+        }
+    //このログをONにすると時のオカリナが起動しなくなる
+    }else{
+        nmi_count = 0;
     }
 
     if (gpio_get(N64_COLD_RESET) == 0) {

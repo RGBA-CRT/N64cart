@@ -59,7 +59,7 @@ uint16_t get_pi_bus_freq(void)
 }
 
 uint32_t last_addr = 0;
-uint32_t n64_last_16mb_bank = 0;
+uint8_t pi_last_page = 0;
 uint32_t flash_bank_available;
 uint32_t n64_rom_size;
 // uint32_t pi_page_size;
@@ -118,25 +118,26 @@ void n64_pi(void)
 		continue;
 	    } else if (last_addr >= 0x10000000 && last_addr <= 0x1FBFFFFF) {
 		do {
-			uint32_t n64_rom_offset = (last_addr & 0x03FFFFFF);
-		    uint32_t n64_16mb_bank = (last_addr & 0x03000000);
-		    if(n64_16mb_bank != n64_last_16mb_bank) {
+			// uint32_t n64_rom_offset = (last_addr & 0x03FFFFFF);
+		//     uint32_t n64_16mb_bank = (last_addr & 0x03000000);
+		    uint8_t page = (pi_game_page_origin + (last_addr>>24) ) % rom_pages;
+		    if(page != pi_last_page) {
 			if(last_addr >= 0x14000000){
 				printf("ILL%x\n", last_addr);
 			}
-			if(n64_rom_offset >= n64_rom_size){
-				// printf("OSA%x\n", last_addr);
-				// n64_rom_offset %= n64_rom_size;
-			}
+			// if(n64_rom_offset >= n64_rom_size){
+			// 	// printf("OSA%x\n", last_addr);
+			// 	// n64_rom_offset %= n64_rom_size;
+			// }
 			// TODO: まともなマッピングシステムを考える。
 			// 今は１６MBページごと。page 0は16MBフルに使えないのでファーストバンクには選べない。
-			uint8_t page = (pi_game_page_origin + (n64_rom_offset>>24) ) % rom_pages;
+			
 			// flash_set_ea_reg_light(page);
 			// rom_file_16 = (uint16_t *) (rom_start[page]);
 			pi_bank_change(page);
 			
 			// gpio_put(LED_PIN, page ? 1 :0);
-			n64_last_16mb_bank = n64_16mb_bank;
+			pi_last_page = page;
 		    }
 		    
 		    uint32_t pi_xip_offset = (last_addr & 0x00FFFFFF);
