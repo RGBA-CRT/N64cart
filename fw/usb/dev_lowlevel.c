@@ -629,8 +629,8 @@ void ep1_out_handler(uint8_t *buf, uint16_t len) {
         // select_cic(0);
         
         extern uint32_t last_addr;
-        extern uint32_t last_ea_bank;
-        printf("last addr = %08x\n", last_ea_bank + last_addr);
+        extern uint32_t n64_last_16mb_bank;
+        printf("last addr = %08x\n", n64_last_16mb_bank + last_addr);
         // }
 	} else {
 	    printf("Unsupported operation tag %08X\n", flash_header.type);

@@ -17,6 +17,7 @@
 #include "main.h"
 #include "n64_pi.pio.h"
 #include "n64.h"
+#include "n64_pi.h"
 #include "cic.h"
 
 #include "rom.h"
@@ -57,16 +58,25 @@ uint16_t get_pi_bus_freq(void)
     return pi_bus_freq;
 }
 
-    uint32_t last_addr = 0;
-    uint32_t last_ea_bank = 0;
-	uint32_t flash_bank_available;
-	uint32_t mapped_rom_size;
+uint32_t last_addr = 0;
+uint32_t n64_last_16mb_bank = 0;
+uint32_t flash_bank_available;
+uint32_t n64_rom_size;
+// uint32_t pi_page_size;
+uint32_t pi_game_page_origin;
+
+
+static void inline pi_bank_change(int page){
+	rom_file_16 = (uint16_t *) (rom_start[page]);
+	flash_set_ea_reg_light(page);
+}
+
 void n64_pi(void)
 {
-    rom_file_16 = (uint16_t *) ((uint32_t) rom_file | ROM_BASE_RP2040);
+//     rom_file_16 = (uint16_t *) ((uint32_t) rom_file | ROM_BASE_RP2040);
 	// rom_file_16 = (uint16_t *) (ROM_BASE_RP2040 + rom_start[0]);
     rom_jpeg_16 = (uint16_t *) (ROM_BASE_RP2040 + jpeg_start);
-	mapped_rom_size = 16*1024*1024;
+	// n64_rom_size = 16*1024*1024
 
     PIO pio = pio0;
     pio_clear_instruction_memory(pio);
@@ -108,24 +118,29 @@ void n64_pi(void)
 		continue;
 	    } else if (last_addr >= 0x10000000 && last_addr <= 0x1FBFFFFF) {
 		do {
-			uint32_t rom_offset = (last_addr & 0x03FFFFFF);
-		    uint32_t ea_bank = (last_addr & 0x03000000);
-			uint32_t in_bank_offset = (last_addr & 0x00FFFFFF);
-		    if(ea_bank != last_ea_bank) {
-				if(last_addr >= 0x14000000){
-					printf("ill access: %x\n", last_addr);
-				}
-				if(rom_offset >= mapped_rom_size){
-					printf("outer space access: %x\n", last_addr);
-				}
-				uint8_t page = (ea_bank>>24) /*& 3*/;
-				// flash_set_ea_reg_light(page);
-				// rom_file_16 = (uint16_t *) (rom_start[page]);
-				
-				// gpio_put(LED_PIN, page ? 1 :0);
-				last_ea_bank = ea_bank;
+			uint32_t n64_rom_offset = (last_addr & 0x03FFFFFF);
+		    uint32_t n64_16mb_bank = (last_addr & 0x03000000);
+		    if(n64_16mb_bank != n64_last_16mb_bank) {
+			if(last_addr >= 0x14000000){
+				printf("ILL%x\n", last_addr);
+			}
+			if(n64_rom_offset >= n64_rom_size){
+				// printf("OSA%x\n", last_addr);
+				// n64_rom_offset %= n64_rom_size;
+			}
+			// TODO: まともなマッピングシステムを考える。
+			// 今は１６MBページごと。page 0は16MBフルに使えないのでファーストバンクには選べない。
+			uint8_t page = (pi_game_page_origin + (n64_rom_offset>>24) ) % rom_pages;
+			// flash_set_ea_reg_light(page);
+			// rom_file_16 = (uint16_t *) (rom_start[page]);
+			pi_bank_change(page);
+			
+			// gpio_put(LED_PIN, page ? 1 :0);
+			n64_last_16mb_bank = n64_16mb_bank;
 		    }
-		    word = rom_file_16[in_bank_offset >> 1];
+		    
+		    uint32_t pi_xip_offset = (last_addr & 0x00FFFFFF);
+		    word = rom_file_16[pi_xip_offset >> 1];
  hackentry:
 		    pio_sm_put(pio, 0, swap8(word));
 		    last_addr += 2;
@@ -189,16 +204,7 @@ void n64_pi(void)
 		gpio_put(LED_PIN, (addr >> 16) & 0x01);
 	    } else if (last_addr == 0x1fd0100e) {
 		int page = (addr >> 16);
-		if (page < rom_pages) {
-		    rom_file_16 = (uint16_t *) (rom_start[page]);
-		    flash_set_ea_reg(page);
-		    
-		    enum CicType type = cic_easy_detect(*((uint32_t*)(&rom_file_16[CIC_DETECT_OFFSET/2])));
-		    printf("Select bank:%d, CIC type: %s\n", page, cic_get_name(type));
-		    select_cic(type);
-			
-			reset_cic();
-		}
+		game_select(page);
 	    }
 
 	    last_addr += 2;
@@ -207,4 +213,40 @@ void n64_pi(void)
 	}
 	addr = pio_sm_get_blocking(pio, 0);
     } while (1);
+}
+
+
+void slove_mapped_rom(int id){
+	n64_rom_size = rom_size[id];
+	for(int i=id+1; i<(id+rom_pages-1); i++){
+		int cur_id = i % rom_pages;
+		pi_bank_change(cur_id);
+		enum CicType type = cic_easy_detect(*((uint32_t*)(&rom_file_16[CIC_DETECT_OFFSET/2])));
+		if(type == _CicTypeMax_){
+			n64_rom_size+=rom_size[cur_id];
+		}else{
+			break;
+		}
+		// printf("%s: page=%d %s size=%dMB \n", __func__, cur_id, cic_get_name(type), n64_rom_size/1024/1024);
+	}
+	// flash_set_ea_reg(id);
+	// printf("%s: decision: %dMB\n", __func__, n64_rom_size/1024/1024);
+}
+
+void game_select(int id){
+	id = id % rom_pages;
+	slove_mapped_rom(id);
+
+	pi_bank_change(id);
+	// pi_page_size = rom_size[id];
+	pi_game_page_origin = id;
+
+	char title[21];
+	strncpy(title, (char*)&rom_file_16[0x20/2], sizeof(title));
+	title[20] = '\0';
+
+	enum CicType type = cic_easy_detect(*((uint32_t*)(&rom_file_16[CIC_DETECT_OFFSET/2])));
+	select_cic(type);
+
+	printf("Select bank:%d, CIC type: %s, title: %s, %dMB\n", id, cic_get_name(type), title, n64_rom_size/1024/1024);
 }

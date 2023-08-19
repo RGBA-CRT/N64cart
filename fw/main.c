@@ -84,8 +84,8 @@ static void show_sysinfo(void)
 
 void n64_pi_restart(void)
 {
-    multicore_reset_core1();
-    multicore_launch_core1(n64_pi);
+    // multicore_reset_core1();
+    // multicore_launch_core1(n64_pi);
 }
 
 #if PI_SRAM
@@ -101,6 +101,8 @@ void n64_save_sram(void)
     uint32_t count = sizeof(n64_sram);
 
     printf("backup SRAM to Flash...");
+    
+    flash_set_ea_reg(0);
 
     flash_range_erase(offset, count);
     flash_range_program(offset, sram_8, count);
@@ -141,7 +143,10 @@ int main(void)
     show_sysinfo();
 
     flash_init_ea();
-    flash_set_ea_reg(0);
+    // flash_set_ea_reg(0);
+    
+    // reset bank pointer, ea reg, select cic.
+    game_select(0);
 
     g_is_n64_sram_write = false;
 
@@ -167,18 +172,19 @@ int main(void)
 
     multicore_launch_core1(n64_pi);
 
+
     while (1) {
 	/* main loop, N64 power on-offで1サイクル */
 
+
 	/* reset to manu rom */
-        flash_set_ea_reg(0);
-	    select_cic(CicType6102);
+        // flash_set_ea_reg(0);
+	    // select_cic(CicType6102);
 
         cic_run();
 
 	/* after n64 power off */
 	if(g_is_n64_sram_write) {
-        	flash_set_ea_reg(0);
 		n64_save_sram();
 		g_is_n64_sram_write = false;
 	}

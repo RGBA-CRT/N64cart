@@ -23,10 +23,11 @@
 #define N64_CIC_DCLK    (20)
 #define N64_CIC_DIO     (21)
 #define N64_COLD_RESET  (22)
-#define N64_SI_DATA (23)
-#define N64_SI_CLK (24)
+// #define N64_SI_DATA (23)
+// #define N64_SI_CLK (24)
 
 #define N64_NMI (26)
 #define N64_INT (27)
 
 #define LED_PIN (25)
+#define ROM_SEL_BUTTON (23)

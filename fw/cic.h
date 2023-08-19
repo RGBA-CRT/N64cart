@@ -12,7 +12,6 @@ enum CicType {
 
 void cic_run(void);
 void select_cic(enum CicType type);
-void reset_cic();
 
 const char* cic_get_name(enum CicType type);
 enum CicType cic_easy_detect(uint32_t keydata);

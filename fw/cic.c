@@ -504,11 +504,18 @@ static void InitRam(unsigned char isPal)
     }
 }
 
-static bool cic_change_request;
+void check_sel_button(){
+    static int button_cycle = 0;
+    static int game_id = 0;
+    if(gpio_get(ROM_SEL_BUTTON)){ button_cycle++; } else {button_cycle=0;}
+    if(button_cycle == 500){
+        game_select(game_id++);
+    }
+}
+
 void cic_run(void)
 {
     unsigned char isPal;
-    cic_change_request = false;
 
     printf("CIC Emulator core running!\r\n");
 
@@ -517,9 +524,9 @@ void cic_run(void)
 	    usbd_init();
     }
 
-restart_cic:
     // Wait for reset to be released
     while (gpio_get(N64_COLD_RESET) == 0) {
+        check_sel_button();
         tight_loop_contents();
     }
 
@@ -582,10 +589,6 @@ restart_cic:
         default:
             return;
         }
-        // if(cic_change_request) {
-        //     cic_change_request = false;
-        //     goto restart_cic;
-        // }
     }
 
     n64_pi_restart();
@@ -598,9 +601,6 @@ void select_cic(enum CicType type){
     _CicChecksum = _CicChecksumTable[type];
     // cic_change_request = true;
     // memcpy(_CicChecksum, CIC6106_CHECKSUM, 12);
-}
-void reset_cic() {
-    cic_change_request = true;
 }
 
 enum CicType cic_easy_detect(uint32_t keydata){
