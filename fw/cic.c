@@ -135,7 +135,7 @@ unsigned char _6105Mem[32];
 static bool check_running(void)
 {
     if (gpio_get(N64_NMI) == 0) {
-       printf("PIF STOP??\n");
+    //    printf("PIF STOP??\n");
     }
 
     if (gpio_get(N64_COLD_RESET) == 0) {
