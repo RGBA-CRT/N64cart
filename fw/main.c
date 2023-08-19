@@ -172,7 +172,7 @@ int main(void)
 
 	/* reset to manu rom */
         flash_set_ea_reg(0);
-	select_cic(CicType6102);
+	    select_cic(CicType6102);
 
         cic_run();
 

@@ -59,11 +59,14 @@ uint16_t get_pi_bus_freq(void)
 
     uint32_t last_addr = 0;
     uint32_t last_ea_bank = 0;
+	uint32_t flash_bank_available;
+	uint32_t mapped_rom_size;
 void n64_pi(void)
 {
     rom_file_16 = (uint16_t *) ((uint32_t) rom_file | ROM_BASE_RP2040);
 	// rom_file_16 = (uint16_t *) (ROM_BASE_RP2040 + rom_start[0]);
     rom_jpeg_16 = (uint16_t *) (ROM_BASE_RP2040 + jpeg_start);
+	mapped_rom_size = 16*1024*1024;
 
     PIO pio = pio0;
     pio_clear_instruction_memory(pio);
@@ -105,19 +108,24 @@ void n64_pi(void)
 		continue;
 	    } else if (last_addr >= 0x10000000 && last_addr <= 0x1FBFFFFF) {
 		do {
-		    uint32_t ea_bank = last_addr & 0x03000000;
+			uint32_t rom_offset = (last_addr & 0x03FFFFFF);
+		    uint32_t ea_bank = (last_addr & 0x03000000);
+			uint32_t in_bank_offset = (last_addr & 0x00FFFFFF);
 		    if(ea_bank != last_ea_bank) {
-			if(last_addr >= 0x14000000){
-				printf("ill access: %x\n", last_addr);
-			}
-			uint8_t page = (ea_bank>>24) /*& 3*/;
-			// flash_set_ea_reg_light(page);
-			// rom_file_16 = (uint16_t *) (rom_start[page]);
-			
-			// gpio_put(LED_PIN, page ? 1 :0);
-			last_ea_bank = ea_bank;
+				if(last_addr >= 0x14000000){
+					printf("ill access: %x\n", last_addr);
+				}
+				if(rom_offset >= mapped_rom_size){
+					printf("outer space access: %x\n", last_addr);
+				}
+				uint8_t page = (ea_bank>>24) /*& 3*/;
+				// flash_set_ea_reg_light(page);
+				// rom_file_16 = (uint16_t *) (rom_start[page]);
+				
+				// gpio_put(LED_PIN, page ? 1 :0);
+				last_ea_bank = ea_bank;
 		    }
-		    word = rom_file_16[(last_addr & 0xFFFFFF) >> 1];
+		    word = rom_file_16[in_bank_offset >> 1];
  hackentry:
 		    pio_sm_put(pio, 0, swap8(word));
 		    last_addr += 2;
@@ -186,8 +194,10 @@ void n64_pi(void)
 		    flash_set_ea_reg(page);
 		    
 		    enum CicType type = cic_easy_detect(*((uint32_t*)(&rom_file_16[CIC_DETECT_OFFSET/2])));
-		    printf("CIC type: %s\n", cic_get_name(type));
+		    printf("Select bank:%d, CIC type: %s\n", page, cic_get_name(type));
 		    select_cic(type);
+			
+			reset_cic();
 		}
 	    }
 

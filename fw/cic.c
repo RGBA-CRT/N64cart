@@ -135,7 +135,7 @@ unsigned char _6105Mem[32];
 static bool check_running(void)
 {
     if (gpio_get(N64_NMI) == 0) {
-//        printf("N64 NMI\n");
+       printf("N64 NMI\n");
     }
 
     if (gpio_get(N64_COLD_RESET) == 0) {
@@ -504,25 +504,28 @@ static void InitRam(unsigned char isPal)
     }
 }
 
+static bool cic_change_request;
 void cic_run(void)
 {
     unsigned char isPal;
-
-    // Reset the state
-    memset(_CicMem, 0, sizeof(_CicMem));
-    memset(_6105Mem, 0, sizeof(_6105Mem));
+    cic_change_request = false;
 
     printf("CIC Emulator core running!\r\n");
 
     if (gpio_get(N64_NMI) == 0) {
         printf("N64 NMI low\n");
-	usbd_init();
+	    usbd_init();
     }
 
+restart_cic:
     // Wait for reset to be released
     while (gpio_get(N64_COLD_RESET) == 0) {
         tight_loop_contents();
     }
+
+    // Reset the state
+    memset(_CicMem, 0, sizeof(_CicMem));
+    memset(_6105Mem, 0, sizeof(_6105Mem));
 
     // read the region setting
     isPal = GET_REGION();
@@ -569,13 +572,20 @@ void cic_run(void)
         case 3:
             // 11 (reset)
             WriteBit(0);
+            printf("CIC RST\n");
+            // goto restart_cic;
             break;
 
         case 1:
             // 01 (die)
+            printf("CIC DIE\n");
         default:
             return;
         }
+        // if(cic_change_request) {
+        //     cic_change_request = false;
+        //     goto restart_cic;
+        // }
     }
 
     n64_pi_restart();
@@ -586,7 +596,11 @@ void cic_run(void)
 void select_cic(enum CicType type){
     _CicSeed = _CicSeedTable[type];
     _CicChecksum = _CicChecksumTable[type];
+    // cic_change_request = true;
     // memcpy(_CicChecksum, CIC6106_CHECKSUM, 12);
+}
+void reset_cic() {
+    cic_change_request = true;
 }
 
 enum CicType cic_easy_detect(uint32_t keydata){
