@@ -116,7 +116,7 @@ void n64_pi(void)
 		}
 
 		continue;
-	    } else if (last_addr >= 0x10000000 && last_addr <= 0x1FBFFFFF) {
+	    } else if (last_addr >= 0x10000000 && last_addr <= 0x13FFFFFF/*0x1FBFFFFF*/) {
 		do {
 			// uint32_t n64_rom_offset = (last_addr & 0x03FFFFFF);
 		//     uint32_t n64_16mb_bank = (last_addr & 0x03000000);
@@ -128,9 +128,9 @@ void n64_pi(void)
 		    last_addr += 2;
 		    addr = pio_sm_get_blocking(pio, 0);
 		    
-		    if(pi_xip_offset == 0x00FFFFFE){
-			printf("ov%x\n", last_addr>>24);
-		    }
+		//     if(pi_xip_offset == 0x00FFFFFE){
+		// 	printf("ov%x\n", last_addr>>24);
+		//     }
 		} while (addr == 0);
 
 		continue;
@@ -164,8 +164,12 @@ void n64_pi(void)
 		word = uart_get_hw(UART_ID)->dr << 8;
 	    } else if (last_addr == 0x1fd0100c) {
 		word = rom_pages << 8;
+	    } else if ((last_addr>>24) == 0x06) {
+		/* 64DD not supported */
+		word = 0x64dd;
 	    } else {
 		word = 0xdead;
+		printf("D_%x\n", last_addr);
 	    }
 	    pio_sm_put(pio, 0, swap8(word));
 	    last_addr += 2;
@@ -198,8 +202,11 @@ void n64_pi(void)
 	} else {
 	    /* from PIO: ADDRESS SET*/
 	    last_addr = addr;
-	    if (last_addr & 0x10000000) {
-		uint8_t page = (pi_game_page_origin + (uint8_t)(last_addr>>24) ) % rom_pages;
+	    if  (last_addr >= 0x10000000 && last_addr <= 0x1FBFFFFF) {
+		// non-guard outter rom access (map all pages)
+		// uint8_t page = (pi_game_page_origin + (uint8_t)(last_addr>>24) % rom_pages;
+		// guard outer rom access
+		uint8_t page = (pi_game_page_origin + (uint8_t)((last_addr>>24) % (n64_rom_size>>24)) ) % rom_pages;
 		if(page != pi_last_page) {
 			// if(last_addr >= 0x14000000){
 			// 	printf("ILL%x\n", last_addr);
@@ -215,6 +222,9 @@ void n64_pi(void)
 			
 			// gpio_put(LED_PIN, page ? 1 :0);
 			pi_last_page = page;
+		}
+		if( (last_addr & 0x0FFFFFFF) > n64_rom_size){
+			printf("%x\n", last_addr);
 		}
 	    }
 	}
@@ -251,6 +261,11 @@ void game_select(int id){
 	char title[21];
 	strncpy(title, (char*)&rom_file_16[0x20/2], sizeof(title));
 	title[20] = '\0';
+
+	if(strcmp(title, "PicoCart64 Test ROM") == 0){
+		printf("special debug flat mapping\n");
+		n64_rom_size = 16*1024*1024*4;
+	}
 
 	enum CicType type = cic_easy_detect(*((uint32_t*)(&rom_file_16[CIC_DETECT_OFFSET/2])));
 	select_cic(type);

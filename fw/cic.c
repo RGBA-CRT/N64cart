@@ -160,7 +160,7 @@ static unsigned char ReadBit(void)
 {
     unsigned char res;
     unsigned char vin;
-    int c=1;
+    int c=0;
     // #define WAIT_COUNT 100 //for 98*3 MHz
     #define WAIT_COUNT 0
     // wait for DCLK to go low
@@ -209,6 +209,8 @@ static void WriteBit(unsigned char b)
     do {
         vin = gpio_get(N64_CIC_DCLK);
     } while ((!vin) && check_running());
+        tight_loop_contents();
+
         tight_loop_contents();
 
     // Disable output
@@ -304,7 +306,7 @@ static void WriteChecksum(void)
     EncodeRound(0x00);
     EncodeRound(0x00);
 
-#ifdef DEBUG
+#if 1
 
     unsigned char index = 0;
     printf("Checksum: ");
@@ -547,15 +549,15 @@ void cic_run(void)
 	    usbd_init();
     }
 
+    // Reset the state
+    memset(_CicMem, 0, sizeof(_CicMem));
+    memset(_6105Mem, 0, sizeof(_6105Mem));
+
     // Wait for reset to be released
     while (gpio_get(N64_COLD_RESET) == 0) {
         check_sel_button();
         tight_loop_contents();
     }
-
-    // Reset the state
-    memset(_CicMem, 0, sizeof(_CicMem));
-    memset(_6105Mem, 0, sizeof(_6105Mem));
 
     // read the region setting
     isPal = GET_REGION();
@@ -566,20 +568,27 @@ void cic_run(void)
         hello |= 0x4;
 
     // printf("W: %02X\n", hello);
+    printf("c");
     WriteNibble(hello);
 
+    printf("i");
     // encode and send the seed
     WriteSeed();
 
+    printf("C");
     // encode and send the checksum
     WriteChecksum();
 
+    printf("A");
     // init the ram corresponding to the region
     InitRam(isPal);
 
+    printf("U");
     // read the initial values from the PIF
     _CicMem[0x01] = ReadNibble();
+    printf("T");
     _CicMem[0x11] = ReadNibble();
+    printf("H");
 
     while(check_running())
     {
@@ -587,6 +596,7 @@ void cic_run(void)
         unsigned char cmd = 0;
         cmd |= (ReadBit() << 1);
         cmd |= ReadBit();
+        printf("%x",cmd);
         switch (cmd)
         {
         case 0:
