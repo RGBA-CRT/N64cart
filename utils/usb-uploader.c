@@ -91,7 +91,7 @@ static int rom_write(libusb_device_handle *dev_handle, int page, const char* fil
         
         fprintf(stderr, "Write to page %d-%d\n", page, write_pages % FLASH_PAGE_MAX);
 
-        int remain_size = size;
+        int remain_size = size - rom_offset;
         // for(int cur_page = page + (rom_offset/FLASH_PAGE_SIZE_MAX); cur_page!=(write_pages+1); cur_page++){
         for(int i= (rom_offset/FLASH_PAGE_SIZE_MAX); i<(write_pages-page+1); i++){
             //  (cur_page == write_pages) ? (size - FLASH_PAGE_SIZE_MAX*(write_pages-page)) : FLASH_PAGE_SIZE_MAX;

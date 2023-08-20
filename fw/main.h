@@ -19,7 +19,7 @@
 
 extern volatile uint32_t jpeg_start;
 
-extern volatile uint32_t rom_pages;
+extern volatile uint8_t rom_pages;
 extern volatile uint32_t rom_start[4];
 extern volatile uint32_t rom_size[4];
 

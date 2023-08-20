@@ -24,7 +24,7 @@
 
 volatile uint32_t jpeg_start;
 
-volatile uint32_t rom_pages;
+volatile uint8_t rom_pages;
 volatile uint32_t rom_start[4];
 volatile uint32_t rom_size[4];
 
@@ -152,10 +152,10 @@ int main(void)
     for(uint8_t j=0;j<rom_pages;j++){
         game_select(j);
     // //    flash_set_ea_reg_light(j);
-    //     for(int i=0;i<16;i++){
-    //         printf("%02x ", ((uint8_t*)ROM_BASE_RP2040)[i+32]);
-    //     }
-    //     printf("\n");
+        for(int i=0;i<16;i++){
+            printf("%02x ", ((uint8_t*)ROM_BASE_RP2040)[i+32]);
+        }
+        printf("\n");
 	
         // for(int i=0;i<8;i++){
         //     printf("%c", ((uint8_t*)ROM_BASE_RP2040)[i+32]);
