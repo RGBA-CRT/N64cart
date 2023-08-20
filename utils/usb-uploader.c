@@ -85,19 +85,23 @@ static int rom_write(libusb_device_handle *dev_handle, int page, const char* fil
         // todo get from device
         #define FLASH_PAGE_SIZE_MAX (16*1024*1024)
         #define FLASH_PAGE_MAX 4
-        int end_pages = (page + (size+FLASH_PAGE_SIZE_MAX-1)/FLASH_PAGE_SIZE_MAX - 1) % FLASH_PAGE_MAX ;
+        int write_pages = (page + (size+FLASH_PAGE_SIZE_MAX-1)/FLASH_PAGE_SIZE_MAX - 1) ;
+        // int start_page = 
         // if(size % FLASH_PAGE_SIZE_MAX) write_pages++;
         
-        fprintf(stderr, "Write to page %d-%d\n", page, end_pages);
+        fprintf(stderr, "Write to page %d-%d\n", page, write_pages % FLASH_PAGE_MAX);
 
-        for(int cur_page = page + (rom_offset/FLASH_PAGE_SIZE_MAX); cur_page<(end_pages+1); cur_page++){
-            int remain_size = (cur_page == end_pages) ? (size - FLASH_PAGE_SIZE_MAX*(end_pages-page)) : FLASH_PAGE_SIZE_MAX;
+        int remain_size = size;
+        // for(int cur_page = page + (rom_offset/FLASH_PAGE_SIZE_MAX); cur_page!=(write_pages+1); cur_page++){
+        for(int i= (rom_offset/FLASH_PAGE_SIZE_MAX); i<(write_pages-page+1); i++){
+            //  (cur_page == write_pages) ? (size - FLASH_PAGE_SIZE_MAX*(write_pages-page)) : FLASH_PAGE_SIZE_MAX;
+            int current_page_write_size = (remain_size<FLASH_PAGE_SIZE_MAX) ? remain_size : FLASH_PAGE_SIZE_MAX;
             
-            printf("write page %d ::: %d bytes\n", cur_page, remain_size);
+            printf("write page %d ::: %d bytes\n", i+page, remain_size);
             header->type = DATA_WRITE;
             header->address = rom_offset % FLASH_PAGE_SIZE_MAX;
-            header->length = remain_size;
-            header->pages = cur_page;
+            header->length = current_page_write_size;
+            header->pages = (i+page)% FLASH_PAGE_MAX;
             printf("[cmd] DATA_WRITE, addr=%x len=%x, page=%d\n", header->address, header->length, header->pages);
 
             bulk_transfer(dev_handle, 0x01, (void *)header, sizeof(struct data_header), &actual, 5000);
@@ -123,7 +127,7 @@ static int rom_write(libusb_device_handle *dev_handle, int page, const char* fil
                 uint8_t buf[64];
                 uint8_t buf_in[64];
 
-                while (remain_size) {
+                while (current_page_write_size) {
                     int r = fread(buf, 1, 32, inf);
                     if (r == 32) {
                         if (type) {
@@ -168,10 +172,10 @@ static int rom_write(libusb_device_handle *dev_handle, int page, const char* fil
                             break;
                         }
 
-                        remain_size -= 32;
+                        current_page_write_size -= 32;
 
-                        if ((header->length - remain_size) % 1024 == 0) {
-                            printf("Send %d bytes of %d\r", header->length - remain_size, header->length);
+                        if ((header->length - current_page_write_size) % 1024 == 0) {
+                            printf("Send %d bytes of %d\r", header->length - current_page_write_size, header->length);
                         }
                     } else {
                         fprintf(stderr, "\nError - unaligned ROM file (align 64)\n");
@@ -179,11 +183,12 @@ static int rom_write(libusb_device_handle *dev_handle, int page, const char* fil
                     }
                 }
 
-                if (remain_size == 0) {
+                if (current_page_write_size == 0) {
                     printf("\n");
                     err = 0;
                 }
             }
+            remain_size -= current_page_write_size;
 
         }
     exit: 
