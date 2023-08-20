@@ -156,20 +156,20 @@ void n64_pi(void)
 		} while (addr == 0);
 
 		continue;
-	    } else if (last_addr == 0x1fd01002) {
-		word =
-		    ((uart_get_hw(UART_ID)->fr & UART_UARTFR_TXFF_BITS) ? 0x00 : 0x0200) |
-		    ((uart_get_hw(UART_ID)->fr & UART_UARTFR_RXFE_BITS) ? 0x00 : 0x0100) | 0xf000;
-	    } else if (last_addr == 0x1fd01006) {
-		word = uart_get_hw(UART_ID)->dr << 8;
-	    } else if (last_addr == 0x1fd0100c) {
-		word = rom_pages << 8;
-	    } else if ((last_addr>>24) == 0x06) {
-		/* 64DD not supported */
-		word = 0x64dd;
+	//     } else if (last_addr == 0x1fd01002) {
+	// 	word =
+	// 	    ((uart_get_hw(UART_ID)->fr & UART_UARTFR_TXFF_BITS) ? 0x00 : 0x0200) |
+	// 	    ((uart_get_hw(UART_ID)->fr & UART_UARTFR_RXFE_BITS) ? 0x00 : 0x0100) | 0xf000;
+	//     } else if (last_addr == 0x1fd01006) {
+	// 	word = uart_get_hw(UART_ID)->dr << 8;
+	//     } else if (last_addr == 0x1fd0100c) {
+	// 	word = rom_pages << 8;
+	//     } else if ((last_addr>>24) == 0x06) {
+	// 	/* 64DD not supported */
+	// 	word = 0x64dd;
 	    } else {
 		word = 0xdead;
-		printf("D_%x\n", last_addr);
+		// printf("D_%x\n", last_addr);
 	    }
 	    pio_sm_put(pio, 0, swap8(word));
 	    last_addr += 2;
@@ -223,9 +223,9 @@ void n64_pi(void)
 			// gpio_put(LED_PIN, page ? 1 :0);
 			pi_last_page = page;
 		}
-		if( (last_addr & 0x0FFFFFFF) > n64_rom_size){
-			printf("%x\n", last_addr);
-		}
+		// if( (last_addr & 0x0FFFFFFF) > n64_rom_size){
+		// 	printf("%x\n", last_addr);
+		// }
 	    }
 	}
 	addr = pio_sm_get_blocking(pio, 0);

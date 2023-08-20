@@ -596,7 +596,7 @@ void cic_run(void)
         unsigned char cmd = 0;
         cmd |= (ReadBit() << 1);
         cmd |= ReadBit();
-        printf("%x",cmd);
+        // printf("%x",cmd);
         switch (cmd)
         {
         case 0:
