@@ -20,16 +20,21 @@ static bool boot2_copyout_valid = false;
 
 static const struct FlashChip flash_chip_table[] = {
 //     { 0xef, 0x4020, 4, 16, 190000, 0x4080, "W25Q512" },
-    // { 0xef, 0x4020, 4, 16, (98000*3), 0x4063, 3, 2, "W25Q512" }, //ギリギリアウト
-    // { 0xef, 0x4020, 4, 16, (96000*3), 0x4a1A, 3, 2, "W25Q512" },
+//    { 0xef, 0x4020, 4, 16, (97000*3), 0x4060, 3, 2, "W25Q512" }, //ギリギリアウト WAITCNT 1?
+    { 0xef, 0x4020, 4, 16, (96000*3), 0x5520, 3, 2, "W25Q512" }, //ギリギリアウト WAITCNT 1
     // { 0xef, 0x4020, 4, 16, (295000), 0x4040, 3, 2, "W25Q512" },
-    { 0xef, 0x4020, 4, 16, (133000*2), 0x4c2c, 2, 2, "W25Q512" },
+    // { 0xef, 0x4020, 4, 16, (96000*3), 0x4a1A, 3, 2, "W25Q512" }, // CPU 288MHz, Flash 95MHz
+    // { 0xef, 0x4020, 4, 16, (133000*2), 0x4c2c, 2, 2, "W25Q512" }, // CPU 266MHz, Flash 133MHz
+    // { 0xef, 0x4020, 4, 16, (303000), 0x4c2c, 3, 2, "W25Q512" }, 
     { 0xef, 0x4019, 2, 16, 256000, 0x4022, 2, 1, "W25Q256" },
     { 0xef, 0x4018, 1, 16, 256000, 0x4022, 2, 1, "W25Q128" },
     { 0xef, 0x4017, 1, 8 , 256000, 0x4022, 2, 1, "W25Q64"  },
     { 0xef, 0x4016, 1, 4 , 256000, 0x4022, 2, 1, "W25Q32"  },
     { 0xef, 0x4015, 1, 2 , 256000, 0x4022, 2, 1, "W25Q16"  }
 };
+// データ化けの線は薄葬。フリーズするときにログは出てない。
+// 吐出して遅延が出ることがあるのでは？？
+// UART上げる
 
 const struct FlashChip* flash_get_info() {
     
@@ -54,7 +59,7 @@ const struct FlashChip* flash_get_info() {
 }
 
 void flash_set_config(const struct FlashChip* chip_info){
-    vreg_set_voltage(VREG_VOLTAGE_1_10);
+    // vreg_set_voltage(VREG_VOLTAGE_1_15);
     ssi_hw->ssienr = 0;
     ssi_hw->baudr = chip_info->flash_clk_div;
     ssi_hw->rx_sample_dly = chip_info->flash_rx_delay;
@@ -173,7 +178,7 @@ void __no_inline_not_in_flash_func(flash_set_ea_reg)(uint8_t addr)
 
 // #define WAIT_SSI_TX() while( !(ssi_hw->sr & (SSI_SR_TFE_BITS)) )
 // #define WAIT_SSI_TX() while( (ssi_hw->sr & (SSI_SR_BUSY_BITS)) )
-#define WAIT_SSI_TX() while((ssi_hw->sr & (SSI_SR_TFE_BITS | SSI_SR_BUSY_BITS)) != SSI_SR_TFE_BITS)
+#define WAIT_SSI_TX() while(((ssi_hw->sr & (SSI_SR_TFE_BITS | SSI_SR_BUSY_BITS)) ^ SSI_SR_TFE_BITS))
 
 void inline W25Q_enter_command_mode(){
     const uint32_t qspi_txrx =
@@ -327,6 +332,7 @@ void inline init_tick_timer(){
 // #define LATCODE(x) x
 #define LATCODE(x)
 
+static bool write_enable = false;
 void flash_set_ea_reg_light(uint8_t addr)
 {    
     // flash_trigger_flush_cache();

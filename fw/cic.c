@@ -171,9 +171,9 @@ static unsigned char ReadBit(void)
     } while (c<=WAIT_COUNT && check_running());
 
     // for(int i=0;i<9004; i++){    // for cpu (100)*3MHz
-    // // for(int i=0;i<10000; i++){    // for cpu (98)*3MHz
-    //     tight_loop_contents();
-    // }
+    for(int i=0;i<10; i++){    // for cpu (98)*3MHz
+        tight_loop_contents();
+    }
 
     // Read the data bit
     res = gpio_get(N64_CIC_DIO);
@@ -200,6 +200,9 @@ static void WriteBit(unsigned char b)
     } while (vin && check_running());
     if (b == 0)
     {
+    for(int i=0;i<10; i++){    // for cpu (98)*3MHz
+        tight_loop_contents();
+    }
         // Drive low
         gpio_set_dir(N64_CIC_DIO, GPIO_OUT);
         gpio_put(N64_CIC_DIO, 0);
@@ -209,9 +212,9 @@ static void WriteBit(unsigned char b)
     do {
         vin = gpio_get(N64_CIC_DCLK);
     } while ((!vin) && check_running());
-        tight_loop_contents();
+        // tight_loop_contents();
 
-        tight_loop_contents();
+        // tight_loop_contents();
 
     // Disable output
     gpio_set_dir(N64_CIC_DIO, GPIO_IN);
@@ -590,6 +593,7 @@ void cic_run(void)
     _CicMem[0x11] = ReadNibble();
     printf("H");
 
+uint32_t last_latency;
     while(check_running())
     {
         // read mode (2 bit)
@@ -597,6 +601,11 @@ void cic_run(void)
         cmd |= (ReadBit() << 1);
         cmd |= ReadBit();
         // printf("%x",cmd);
+        extern uint32_t latency;
+        if(last_latency!=latency){
+            printf("%x\n", latency);
+            last_latency=latency;
+        }
         switch (cmd)
         {
         case 0:

@@ -64,7 +64,8 @@ uint32_t flash_bank_available;
 uint32_t n64_rom_size;
 // uint32_t pi_page_size;
 uint8_t pi_game_page_origin;
-
+uint32_t latency;
+#include "tick.h"
 
 static void inline pi_bank_change(uint8_t page){
 	rom_file_16 = (uint16_t *) (rom_start[page]);
@@ -94,7 +95,12 @@ void n64_pi(void)
     uint32_t word;
 
     uint32_t addr = pio_sm_get_blocking(pio, 0);
+    
+    tick_init();
+    uint32_t start;
     do {
+    	
+    bool first = true;
 	if (addr == 0) {
 	    // from PIO: READ REQUEST
 	    if ((last_addr == 0x10000000)) {
@@ -123,10 +129,20 @@ void n64_pi(void)
 		    
 		    uint32_t pi_xip_offset = (last_addr & 0x00FFFFFF);
 		    word = rom_file_16[pi_xip_offset >> 1];
+		    uint16_t word2 = rom_file_16[pi_xip_offset >> 1];
+		    if(word != word2){
+			printf("!");
+		    }
  hackentry:
 		    pio_sm_put(pio, 0, swap8(word));
 		    last_addr += 2;
 		    addr = pio_sm_get_blocking(pio, 0);
+		    if(first){
+			latency = tick_diffs(start,tick_get());
+
+		// 	printf("%d\n",);
+			first=false;
+		    }
 		    
 		//     if(pi_xip_offset == 0x00FFFFFE){
 		// 	printf("ov%x\n", last_addr>>24);
@@ -169,6 +185,7 @@ void n64_pi(void)
 	// 	word = 0x64dd;
 	    } else {
 		word = 0xdead;
+		first=true;
 		// printf("D_%x\n", last_addr);
 	    }
 	    pio_sm_put(pio, 0, swap8(word));
@@ -200,6 +217,7 @@ void n64_pi(void)
 	    last_addr += 2;
 
 	} else {
+		start = tick_get();
 	    /* from PIO: ADDRESS SET*/
 	    last_addr = addr;
 	    if  (last_addr >= 0x10000000 && last_addr <= 0x1FBFFFFF) {
