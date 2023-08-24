@@ -64,7 +64,7 @@ uint32_t flash_bank_available;
 uint32_t n64_rom_size;
 // uint32_t pi_page_size;
 uint8_t pi_game_page_origin;
-uint32_t latency;
+uint32_t latency, max_byte_delay,max_byte_addr;
 #include "tick.h"
 
 static void inline pi_bank_change(uint8_t page){
@@ -126,7 +126,7 @@ void n64_pi(void)
 		do {
 			// uint32_t n64_rom_offset = (last_addr & 0x03FFFFFF);
 		//     uint32_t n64_16mb_bank = (last_addr & 0x03000000);
-		    
+		    uint32_t bs = tick_get();
 		    uint32_t pi_xip_offset = (last_addr & 0x00FFFFFF);
 		    word = rom_file_16[pi_xip_offset >> 1];
 		    uint16_t word2 = rom_file_16[pi_xip_offset >> 1];
@@ -138,16 +138,19 @@ void n64_pi(void)
 		    last_addr += 2;
 		    addr = pio_sm_get_blocking(pio, 0);
 		    if(first){
-			latency = tick_diffs(start,tick_get());
+			uint32_t t = tick_diffs(start,tick_get());
+			if(t>0x2a5) latency=t;
 
 		// 	printf("%d\n",);
 			first=false;
 		    }
+		    uint32_t bd = tick_diffs(bs,tick_get());
+		    if(bd>0x100) {max_byte_delay=bd;max_byte_addr=last_addr;};
 		    
 		//     if(pi_xip_offset == 0x00FFFFFE){
 		// 	printf("ov%x\n", last_addr>>24);
 		//     }
-		} while (addr == 0);
+		} while (addr == 0);;
 
 		continue;
 #if PI_SRAM

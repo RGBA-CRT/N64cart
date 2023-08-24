@@ -21,7 +21,7 @@ static bool boot2_copyout_valid = false;
 static const struct FlashChip flash_chip_table[] = {
 //     { 0xef, 0x4020, 4, 16, 190000, 0x4080, "W25Q512" },
 //    { 0xef, 0x4020, 4, 16, (97000*3), 0x4060, 3, 2, "W25Q512" }, //ギリギリアウト WAITCNT 1?
-    { 0xef, 0x4020, 4, 16, (96000*3), 0x5520, 3, 2, "W25Q512" }, //ギリギリアウト WAITCNT 1
+    { 0xef, 0x4020, 4, 16, (90000*3), 0x5540, 3, 2, "W25Q512" }, //ギリギリアウト WAITCNT 1
     // { 0xef, 0x4020, 4, 16, (295000), 0x4040, 3, 2, "W25Q512" },
     // { 0xef, 0x4020, 4, 16, (96000*3), 0x4a1A, 3, 2, "W25Q512" }, // CPU 288MHz, Flash 95MHz
     // { 0xef, 0x4020, 4, 16, (133000*2), 0x4c2c, 2, 2, "W25Q512" }, // CPU 266MHz, Flash 133MHz
