@@ -64,7 +64,8 @@ uint32_t flash_bank_available;
 uint32_t n64_rom_size;
 // uint32_t pi_page_size;
 uint8_t pi_game_page_origin;
-uint32_t latency, max_byte_delay,max_byte_addr;
+uint32_t latency, max_byte_delay,max_byte_addr,latency_addr;
+uint32_t bulk_start, bulk_cnt;
 #include "tick.h"
 
 static void inline pi_bank_change(uint8_t page){
@@ -123,6 +124,7 @@ void n64_pi(void)
 
 		continue;
 	    } else if (last_addr >= 0x10000000 && last_addr <= 0x13FFFFFF/*0x1FBFFFFF*/) {
+		bulk_start = last_addr;
 		do {
 			// uint32_t n64_rom_offset = (last_addr & 0x03FFFFFF);
 		//     uint32_t n64_16mb_bank = (last_addr & 0x03000000);
@@ -135,22 +137,26 @@ void n64_pi(void)
 		    }
  hackentry:
 		    pio_sm_put(pio, 0, swap8(word));
-		    last_addr += 2;
-		    addr = pio_sm_get_blocking(pio, 0);
 		    if(first){
 			uint32_t t = tick_diffs(start,tick_get());
-			if(t>0x2a5) latency=t;
+			if(t>0x2a5)
+				{latency=t;latency_addr=last_addr;}
 
 		// 	printf("%d\n",);
 			first=false;
 		    }
 		    uint32_t bd = tick_diffs(bs,tick_get());
-		    if(bd>0x100) {max_byte_delay=bd;max_byte_addr=last_addr;};
+		    if(bd>0x60)
+		    	{max_byte_delay=bd;max_byte_addr=last_addr;};
 		    
 		//     if(pi_xip_offset == 0x00FFFFFE){
 		// 	printf("ov%x\n", last_addr>>24);
 		//     }
-		} while (addr == 0);;
+		
+		    addr = pio_sm_get_blocking(pio, 0);
+		    last_addr += 2;
+		} while (addr == 0);
+		bulk_cnt = last_addr - bulk_start;
 
 		continue;
 #if PI_SRAM

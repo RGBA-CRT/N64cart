@@ -593,7 +593,7 @@ void cic_run(void)
     _CicMem[0x11] = ReadNibble();
     printf("H");
 
-uint32_t last_latency, last_mbd;
+uint32_t last_latency, last_mbd, last_blk_adr;
     while(check_running())
     {
         // read mode (2 bit)
@@ -602,16 +602,22 @@ uint32_t last_latency, last_mbd;
         cmd |= ReadBit();
         // printf("%x",cmd);
         extern uint32_t latency;
+        extern uint32_t latency_addr;
         extern uint32_t last_addr;
         extern uint32_t max_byte_delay;
         extern uint32_t max_byte_addr;
+        extern uint32_t bulk_start, bulk_cnt;
         if(last_latency!=latency){
-            printf("$%x %x %x\n", last_addr, latency, max_byte_delay);
+            printf("$%x %x %x\n", latency_addr, latency, max_byte_delay);
             last_latency=latency;
         }
         if(last_mbd != max_byte_delay){
-            printf("M%x %x %d\n", max_byte_addr, latency, max_byte_delay);
+            printf("M%x %x %x\n", max_byte_addr, latency, max_byte_delay);
             last_mbd=max_byte_delay;
+        }
+        if(last_blk_adr!=bulk_start){
+            printf("B%x %d\n", bulk_start, bulk_cnt);
+            last_blk_adr = bulk_start;
         }
         switch (cmd)
         {
