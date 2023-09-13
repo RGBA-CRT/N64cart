@@ -40,6 +40,12 @@ static inline uint32_t swap16(uint32_t value)
 
 static inline uint32_t swap8(uint16_t value)
 {
+	// __builtin_bswap32
+	
+//   asm ("rev16 %1,%0"
+//           : "=r" (a)
+//           : "r" (a));
+//   return a;
     // 0x1122 => 0x2211
     return (value << 8) | (value >> 8);
 }
@@ -152,11 +158,19 @@ void n64_pi(void)
 		//     if(pi_xip_offset == 0x00FFFFFE){
 		// 	printf("ov%x\n", last_addr>>24);
 		//     }
+		    last_addr += 2;
+		    if(pio_sm_is_rx_fifo_empty(pio, 0) && (!pio_sm_is_tx_fifo_full(pio, 0))){
+			// if(last_addr-bulk_start > 512){
+			// 	break;
+			// }else{
+			   continue;
+			}
+		    }
 		
 		    addr = pio_sm_get_blocking(pio, 0);
-		    last_addr += 2;
 		} while (addr == 0);
 		bulk_cnt = last_addr - bulk_start;
+		pio_sm_drain_tx_fifo(pio, 0);
 
 		continue;
 #if PI_SRAM
