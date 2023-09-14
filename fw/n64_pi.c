@@ -105,14 +105,15 @@ void n64_pi(void)
     
     tick_init();
     uint32_t start;
-    do {
-    	
+    do {    	
     bool first = true;
 	if (addr == 0) {
+		// pio_sm_clear_fifos(pio, 0);
+		// pio_sm_drain_tx_fifo(pio, 0);
 	    // from PIO: READ REQUEST
 	    if ((last_addr == 0x10000000)) {
 		word = 0x3780;
-		pio_sm_put(pio, 0, swap8(word));
+		pio_sm_put_blocking(pio, 0, swap8(word));
 		last_addr += 2;
 #if PI_SRAM
 		word = pi_bus_freq;
@@ -134,43 +135,53 @@ void n64_pi(void)
 		do {
 			// uint32_t n64_rom_offset = (last_addr & 0x03FFFFFF);
 		//     uint32_t n64_16mb_bank = (last_addr & 0x03000000);
-		    uint32_t bs = tick_get();
+		//     uint32_t bs = tick_get();
 		    uint32_t pi_xip_offset = (last_addr & 0x00FFFFFF);
 		    word = rom_file_16[pi_xip_offset >> 1];
-		    uint16_t word2 = rom_file_16[pi_xip_offset >> 1];
-		    if(word != word2){
-			printf("!");
-		    }
+		//     uint16_t word2 = rom_file_16[pi_xip_offset >> 1];
+		//     if(word != word2){
+		// 	printf("!");
+		//     }
  hackentry:
-		    pio_sm_put(pio, 0, swap8(word));
-		    if(first){
-			uint32_t t = tick_diffs(start,tick_get());
-			if(t>0x2a5)
-				{latency=t;latency_addr=last_addr;}
+		    pio_sm_put_blocking(pio, 0, swap8(word));
+		//     if(first){
+		// 	uint32_t t = tick_diffs(start,tick_get());
+		// 	if(t>0x2a5)
+		// 		{latency=t;latency_addr=last_addr;}
 
-		// 	printf("%d\n",);
-			first=false;
-		    }
-		    uint32_t bd = tick_diffs(bs,tick_get());
-		    if(bd>0x60)
-		    	{max_byte_delay=bd;max_byte_addr=last_addr;};
+		// // 	printf("%d\n",);
+		// 	first=false;
+		//     }
+		//     uint32_t bd = tick_diffs(bs,tick_get());
+		//     if(bd>0x60)
+		//     	{max_byte_delay=bd;max_byte_addr=last_addr;};
 		    
 		//     if(pi_xip_offset == 0x00FFFFFE){
 		// 	printf("ov%x\n", last_addr>>24);
 		//     }
 		    last_addr += 2;
-		    if(pio_sm_is_rx_fifo_empty(pio, 0) && (!pio_sm_is_tx_fifo_full(pio, 0))){
-			// if(last_addr-bulk_start > 512){
-			// 	break;
-			// }else{
-			   continue;
+		    
+		//     if(((last_addr-bulk_start) > 512)){
+		//     	break;
+		//     }
+		check_rx_fifo:
+		    if(pio_sm_is_rx_fifo_empty(pio, 0)){
+			// 指示はまだない
+			if(pio_sm_is_tx_fifo_full(pio, 0)){
+				// TXFIFOが詰まってやれることがない→指示待ち
+				goto check_rx_fifo;
+			}else{
+				// TXIFOが空いているので突っ込んでしまえ
+				continue;
 			}
 		    }
 		
 		    addr = pio_sm_get_blocking(pio, 0);
 		} while (addr == 0);
 		bulk_cnt = last_addr - bulk_start;
-		pio_sm_drain_tx_fifo(pio, 0);
+		pio_sm_clear_fifos(pio, 0);
+		// pio_sm_drain_tx_fifo(pio, 0);
+		
 
 		continue;
 #if PI_SRAM
@@ -211,7 +222,7 @@ void n64_pi(void)
 		first=true;
 		// printf("D_%x\n", last_addr);
 	    }
-	    pio_sm_put(pio, 0, swap8(word));
+	    pio_sm_put_blocking(pio, 0, swap8(word));
 	    last_addr += 2;
 	} else if (addr & 0x1) {
 	    // from PIO: WRITE

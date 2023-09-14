@@ -137,7 +137,7 @@ static bool check_running(void)
 {
     
     if (gpio_get(N64_NMI) == 0) {
-        // printf("#");
+        printf("#");
         // nmi_count++;
         // if(nmi_count > 100){
         //    printf("PIF STOP??\n");
@@ -150,7 +150,7 @@ static bool check_running(void)
 
     if (gpio_get(N64_COLD_RESET) == 0) {
         // Reset the CIC
-        // return false;
+        return false;
     }
 
     return true;
@@ -557,10 +557,10 @@ void cic_run(void)
     memset(_6105Mem, 0, sizeof(_6105Mem));
 
     // Wait for reset to be released
-    // while (gpio_get(N64_COLD_RESET) == 0) {
-    //     check_sel_button();
-    //     tight_loop_contents();
-    // }
+    while (gpio_get(N64_COLD_RESET) == 0) {
+        check_sel_button();
+        tight_loop_contents();
+    }
 
     // read the region setting
     isPal = GET_REGION();

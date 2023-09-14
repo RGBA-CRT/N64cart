@@ -41,6 +41,9 @@ pi_start:
     ; TODO: Can we use autopush?
     push
 
+    pull noblock
+    ;pull noblock
+
 .wrap_target
 wait_for_not_read_or_aleh:
 
