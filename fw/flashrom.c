@@ -20,9 +20,9 @@ static uint32_t boot2_copyout[BOOT2_SIZE_WORDS];
 static bool boot2_copyout_valid = false;
 
 static const struct FlashChip flash_chip_table[] = {
-   { 0xef, 0x4020, 4, 16, 300000, 0x5a1c, 3, 2, "W25Q512" }, // Flashオーバークロック
+//    { 0xef, 0x4020, 4, 16, 300000, 0x5a1c, 3, 2, "W25Q512" }, // Flashオーバークロック
 //    { 0xef, 0x4020, 4, 16, 291000, 0x5b1a, 2, 2, "W25Q512" }, // Flashオーバークロック
-//    { 0xef, 0x4020, 4, 16, (96000*3), 0x5520, 3, 2, "W25Q512" }, // ギリギリ動く
+   { 0xef, 0x4020, 4, 16, (96000*3), 0x6030, 3, 2, "W25Q512" }, // ギリギリ動く
 //    { 0xef, 0x4020, 4, 16, (133000*3), 0x6c20, 4, 2, "W25Q512" }, // Firmの起動まではいく
     // { 0xef, 0x4020, 4, 16, (132000*2), 0x6c1d, 2, 2, "W25Q512" }, // CPU 266MHz, Flash 133MHz
     { 0xef, 0x4019, 2, 16, 256000, 0x4022, 2, 1, "W25Q256" },
@@ -302,7 +302,7 @@ void flash_init_ea(){
     // xflash_do_cmd_internal(txbuf, rxbuf, 1);
 
     // xip_exit_command_mode();
-    bus_ctrl_hw->priority = BUSCTRL_BUS_PRIORITY_PROC0_BITS;
+    bus_ctrl_hw->priority = BUSCTRL_BUS_PRIORITY_PROC1_BITS;
 
 }
 

@@ -134,6 +134,10 @@ void n64_pi(void)
 		bulk_start = last_addr;
 		do {
 		    word = rom_file_16[pi_xip_offset];
+		    uint16_t w2 = rom_file_16[pi_xip_offset];
+		    if(word!=w2){
+			while(1){printf("!");};;
+		    }
  hackentry:
 		    pio_sm_put_blocking(pio, 0, swap8(word));
 			pi_xip_offset++;
