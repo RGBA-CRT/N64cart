@@ -104,8 +104,9 @@ void n64_pi(void)
 	tight_loop_contents();
     }
 
+last_addr=0x10000000;
     uint32_t word;
-    uint32_t addr = pio_sm_get_blocking(pio, 0);    
+    uint32_t addr = 0;//pio_sm_get_blocking(pio, 0);
     do {    	
 	if (addr == 0) {
 	    // from PIO: READ REQUEST
@@ -134,10 +135,6 @@ void n64_pi(void)
 		bulk_start = last_addr;
 		do {
 		    word = rom_file_16[pi_xip_offset];
-		    uint16_t w2 = rom_file_16[pi_xip_offset];
-		    if(word!=w2){
-			while(1){printf("!");};;
-		    }
  hackentry:
 		    pio_sm_put_blocking(pio, 0, swap8(word));
 			pi_xip_offset++;
@@ -157,7 +154,7 @@ void n64_pi(void)
 		    addr = pio_sm_get_blocking(pio, 0);
 		} while (addr == 0);
 		// bulk_cnt = (pi_xip_offset<<1) - (bulk_start & 0x00FFFFFF);
-		pio_sm_clear_fifos(pio, 0);
+		//pio_sm_clear_fifos(pio, 0);
 
 		continue;
 #if PI_SRAM
@@ -197,9 +194,12 @@ void n64_pi(void)
 		word = 0xdead;
 		bulk_start=last_addr;
 		// printf("D_%x\n", last_addr);
+		pio_sm_put_blocking(pio, 0, word);
+		// last_addr += 2;
+		
+		addr = pio_sm_get_blocking(pio, 0);
+		continue;
 	    }
-	    pio_sm_put_blocking(pio, 0, swap8(word));
-	    last_addr += 2;
 	} else if (addr & 0x1) {
 	    // from PIO: WRITE
 #if PI_SRAM
@@ -227,6 +227,8 @@ void n64_pi(void)
 	    last_addr += 2;
 
 	} else {
+		
+		pio_sm_clear_fifos(pio, 0);
 		// start = tick_get();
 	    /* from PIO: ADDRESS SET*/
 	    last_addr = addr;
@@ -256,7 +258,11 @@ void n64_pi(void)
 		// }
 	    }
 	}
-	addr = pio_sm_get_blocking(pio, 0);
+	if(pio_sm_is_rx_fifo_empty(pio, 0)){
+		addr = 0;
+	}else{
+		addr = pio_sm_get_blocking(pio, 0);
+	}
     } while (1);
 }
 

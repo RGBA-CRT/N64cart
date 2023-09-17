@@ -162,7 +162,7 @@ static unsigned char ReadBit(void)
     unsigned char vin;
     int c=0;
     // #define WAIT_COUNT 100 //for 98*3 MHz
-    #define WAIT_COUNT 0
+    #define WAIT_COUNT 2
     // wait for DCLK to go low
     do {
         vin = gpio_get(N64_CIC_DCLK);
