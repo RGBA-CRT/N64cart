@@ -142,7 +142,7 @@ void pi_program_init(PIO pio, uint sm, uint offset) {
     // JMP pin = ALEH
     sm_config_set_jmp_pin(&c, 17);
 
-    sm_config_set_clkdiv( &c, 2.0f );
+    //sm_config_set_clkdiv( &c, 3.0f );
 
     pio_sm_init(pio, sm, offset, &c);
 }
