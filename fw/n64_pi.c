@@ -131,7 +131,7 @@ void n64_pi(void)
 		continue;
 	    } else if (last_addr >= 0x10000000 && last_addr <= 0x13FFFFFF/*0x1FBFFFFF*/) {
 		pi_xip_offset = (last_addr & 0x00FFFFFF)>>1;
-		// bulk_start = last_addr;
+		bulk_start = last_addr;
 		do {
 		    word = rom_file_16[pi_xip_offset];
  hackentry:
