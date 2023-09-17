@@ -151,7 +151,7 @@ last_addr=0x10000000;
 			}
 		    }
 		
-		    addr = pio_sm_get_blocking(pio, 0);
+		    addr = pio_sm_get(pio, 0);
 		} while (addr == 0);
 		// bulk_cnt = (pi_xip_offset<<1) - (bulk_start & 0x00FFFFFF);
 		//pio_sm_clear_fifos(pio, 0);
@@ -261,7 +261,7 @@ last_addr=0x10000000;
 	if(pio_sm_is_rx_fifo_empty(pio, 0)){
 		addr = 0;
 	}else{
-		addr = pio_sm_get_blocking(pio, 0);
+		addr = pio_sm_get(pio, 0);
 	}
     } while (1);
 }

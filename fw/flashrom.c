@@ -21,8 +21,9 @@ static bool boot2_copyout_valid = false;
 
 static const struct FlashChip flash_chip_table[] = {
 //    { 0xef, 0x4020, 4, 16, 300000, 0x5a1c, 3, 2, "W25Q512" }, // Flashオーバークロック
-//    { 0xef, 0x4020, 4, 16, 291000, 0x5b1a, 2, 2, "W25Q512" }, // Flashオーバークロック
-   { 0xef, 0x4020, 4, 16, (96000*3), 0x6040, 3, 2, "W25Q512" }, // ギリギリ動く
+   { 0xef, 0x4020, 4, 16, 291000, 0x5020, 2, 2, "W25Q512" }, // Flashオーバークロック
+//    { 0xef, 0x4020, 4, 16, (96000*3), 0x5522, 3, 2, "W25Q512" }, // ギリギリ動く
+//    { 0xef, 0x4020, 4, 16, (9/0000*3), 0x5540, 3, 2, "W25Q512" }, // ギリギリ動く
 //    { 0xef, 0x4020, 4, 16, (133000*3), 0x6c20, 4, 2, "W25Q512" }, // Firmの起動まではいく
     // { 0xef, 0x4020, 4, 16, (132000*2), 0x6c1d, 2, 2, "W25Q512" }, // CPU 266MHz, Flash 133MHz
     { 0xef, 0x4019, 2, 16, 256000, 0x4022, 2, 1, "W25Q256" },
@@ -55,7 +56,7 @@ const struct FlashChip* flash_get_info() {
 }
 
 void flash_set_config(const struct FlashChip* chip_info){
-    vreg_set_voltage(VREG_VOLTAGE_1_20);
+    vreg_set_voltage(VREG_VOLTAGE_1_15);
     ssi_hw->ssienr = 0;
     ssi_hw->baudr = chip_info->flash_clk_div;
     ssi_hw->rx_sample_dly = chip_info->flash_rx_delay;
