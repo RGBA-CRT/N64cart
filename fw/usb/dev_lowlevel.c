@@ -615,10 +615,10 @@ void ep1_out_handler(uint8_t *buf, uint16_t len) {
 		    flash_set_ea_reg(flash_header.pages);
 		    printf("Write ROM %d bytes to ROM page %d\n", flash_header.length, flash_header.pages);
 		} else {
-		    flash_offset = jpeg_start;
+		    flash_offset = flash_sram_start;
 		    flash_set_ea_reg(0);
 		    flash_header.length = (flash_header.length + 4095) & ~4095;
-		    printf("Write picture %d bytes\n", flash_header.length);
+		    printf("Write sram %d bytes\n", flash_header.length);
 		}
 	    }
 	} else if (flash_header.type == DATA_INFO) {

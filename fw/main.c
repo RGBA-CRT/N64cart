@@ -22,7 +22,7 @@
 #include "n64_pi.h"
 #include "n64.h"
 
-volatile uint32_t jpeg_start;
+volatile uint32_t flash_sram_start;
 
 volatile uint8_t rom_pages;
 volatile uint32_t rom_start[4];
@@ -38,10 +38,10 @@ static void setup_sysconfig(void)
 {
     uintptr_t fw_binary_end = (uintptr_t) &__flash_binary_end;
 
-    jpeg_start = ((fw_binary_end - XIP_BASE) + 4095) & ~4095;
+    flash_sram_start = ROM_BASE_RP2040 + (((fw_binary_end - XIP_BASE) + 4095) & ~4095);
 
     rom_pages = 1;
-    rom_start[0] = ROM_BASE_RP2040 + jpeg_start + 64 * 1024;
+    rom_start[0] = flash_sram_start + SRAM_SIZE;
     rom_size[0] = 2 * 1024 * 1024;
 
     g_flash_info = flash_get_info();
@@ -89,7 +89,7 @@ void n64_pi_restart(void)
 }
 
 #if PI_SRAM
-const uint8_t __aligned(4096) __in_flash("n64_sram") n64_sram[SRAM_SIZE];
+// const uint8_t __aligned(4096) __in_flash("n64_sram") n64_sram[SRAM_SIZE];
 
 uint8_t sram_8[SRAM_SIZE];
 
@@ -97,8 +97,8 @@ bool g_is_n64_sram_write;
 
 void n64_save_sram(void)
 {
-    uint32_t offset = ((uint32_t) n64_sram) - XIP_BASE;
-    uint32_t count = sizeof(n64_sram);
+    uint32_t offset = ((uint32_t) flash_sram_start - ROM_BASE_RP2040);
+    uint32_t count = SRAM_SIZE;
 
     printf("backup SRAM to Flash...");
     
@@ -110,6 +110,16 @@ void n64_save_sram(void)
     flash_set_config(g_flash_info);
 
     printf("done.\n");
+    for(int of=0; of<16*8;of+=16){
+        for(int i=0;i<16;i++){
+            printf("%02x ",sram_8[of+i]);
+        }
+        for(int i=0;i<16;i++){
+            uint8_t b=sram_8[of+i];
+            printf("%c",(b<0x20) ? '.' : ((b>=0x80) ? '.' : b));
+        }
+        printf("\n");
+    }
 }
 #endif
 
@@ -147,7 +157,10 @@ int main(void)
     
     g_is_n64_sram_write = false;
 
-    memcpy(sram_8, n64_sram, SRAM_SIZE);
+    // memset(sram_8, 0xFF, sizeof(sram_8));
+    printf("sram: RAM=%x, flash=%x %d\n", sram_8, flash_sram_start, SRAM_SIZE);
+    flash_set_ea_reg(0);
+    memcpy(sram_8, (void*)flash_sram_start, SRAM_SIZE);
 
     for(uint8_t j=0;j<rom_pages;j++){
         game_select(j);

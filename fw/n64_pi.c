@@ -23,7 +23,7 @@
 #include "rom.h"
 
 static uint16_t *rom_file_16;
-static uint16_t *rom_jpeg_16;
+// static uint16_t *rom_jpeg_16;
 
 static uint16_t pi_bus_freq = 0x40ff;
 
@@ -84,7 +84,7 @@ void n64_pi(void)
 {
 //     rom_file_16 = (uint16_t *) ((uint32_t) rom_file | ROM_BASE_RP2040);
 	// rom_file_16 = (uint16_t *) (ROM_BASE_RP2040 + rom_start[0]);
-    rom_jpeg_16 = (uint16_t *) (ROM_BASE_RP2040 + jpeg_start);
+//     rom_jpeg_16 = (uint16_t *) (ROM_BASE_RP2040 + flash_sram_start);
 	// n64_rom_size = 16*1024*1024
 
     PIO pio = pio0;
@@ -132,7 +132,7 @@ last_addr=0x10000000;
 		continue;
 	    } else if (last_addr >= 0x10000000 && last_addr <= 0x13FFFFFF/*0x1FBFFFFF*/) {
 		pi_xip_offset = (last_addr & 0x00FFFFFF)>>1;
-		bulk_start = last_addr;
+		// bulk_start = last_addr;
 		do {
 		    word = rom_file_16[pi_xip_offset];
  hackentry:
@@ -169,16 +169,16 @@ last_addr=0x10000000;
 
 		continue;
 #endif
-	    } else if (last_addr >= 0x1fd80000) {
-		do {
-		    word = rom_jpeg_16[(last_addr & 0xFFFF) >> 1];
+	//     } else if (last_addr >= 0x1fd80000) {
+	// 	do {
+	// 	    word = rom_jpeg_16[(last_addr & 0xFFFF) >> 1];
 
-		    pio_sm_put(pio, 0, swap8(word));
-		    last_addr += 2;
-		    addr = pio_sm_get_blocking(pio, 0);
-		} while (addr == 0);
+	// 	    pio_sm_put(pio, 0, swap8(word));
+	// 	    last_addr += 2;
+	// 	    addr = pio_sm_get_blocking(pio, 0);
+	// 	} while (addr == 0);
 
-		continue;
+	// 	continue;
 	//     } else if (last_addr == 0x1fd01002) {
 	// 	word =
 	// 	    ((uart_get_hw(UART_ID)->fr & UART_UARTFR_TXFF_BITS) ? 0x00 : 0x0200) |
@@ -204,12 +204,17 @@ last_addr=0x10000000;
 	    // from PIO: WRITE
 #if PI_SRAM
 	    if (last_addr >= 0x08000000 && last_addr <= 0x0FFFFFFF) {
+		bulk_start = last_addr;
+		last_addr&=0xFFFFFFF0;
+		// printf("W%x\n",bulk_start);
 		do {
 		    sram_16[(last_addr & (SRAM_SIZE-1)) >> 1] = addr >> 16;
 
 		    last_addr += 2;
 		    addr = pio_sm_get_blocking(pio, 0);
 		} while (addr & 0x01);
+		
+		bulk_cnt=last_addr-bulk_start;
 		g_is_n64_sram_write = true;
 
 		continue;

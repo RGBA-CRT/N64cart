@@ -17,7 +17,7 @@
  * 将来的な拡張に備えてサイズは1Mbitで取っておく */
 #define SRAM_SIZE 0x00020000
 
-extern volatile uint32_t jpeg_start;
+extern volatile uint32_t flash_sram_start;
 
 extern volatile uint8_t rom_pages;
 extern volatile uint32_t rom_start[4];
