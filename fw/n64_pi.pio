@@ -42,9 +42,9 @@ pi_start:
     push
 
     ; clear fifo
-    pull noblock
-    pull noblock
-    pull noblock
+    ;pull noblock
+    ;pull noblock
+    ;pull noblock
     pull noblock
 
 .wrap_target
