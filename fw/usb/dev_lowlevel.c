@@ -667,6 +667,7 @@ void ep1_out_handler(uint8_t *buf, uint16_t len) {
 		printf("Total bytes received %d\n", flash_received_size);
 		flash_stage = 0;
 		flash_set_ea_reg(0);
+        
 	    }
 	} else {
 	    printf("Wrong packet size %d\n", len);

@@ -132,7 +132,7 @@ last_addr=0x10000000;
 		continue;
 	    } else if (last_addr >= 0x10000000 && last_addr <= 0x13FFFFFF/*0x1FBFFFFF*/) {
 		pi_xip_offset = (last_addr & 0x00FFFFFF)>>1;
-		// bulk_start = last_addr;
+		bulk_start = last_addr;
 		do {
 		    word = rom_file_16[pi_xip_offset];
  hackentry:
@@ -153,7 +153,7 @@ last_addr=0x10000000;
 		
 		    addr = pio_sm_get(pio, 0);
 		} while (addr == 0);
-		// bulk_cnt = (pi_xip_offset<<1) - (bulk_start & 0x00FFFFFF);
+		bulk_cnt = (pi_xip_offset<<1) - (bulk_start & 0x00FFFFFF);
 		//pio_sm_clear_fifos(pio, 0);
 
 		continue;
@@ -204,7 +204,7 @@ last_addr=0x10000000;
 		continue;
 	    }
 	} else if (addr & 0x1) {
-		printf("W%x %x\n", last_addr, addr);
+		// printf("W%x %x\n", last_addr, addr);
 	    // from PIO: WRITE
 #if PI_SRAM
 	    if (last_addr >= 0x08000000 && last_addr <= 0x0FFFFFFF) {
