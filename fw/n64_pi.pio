@@ -32,7 +32,7 @@ pi_start:
     ; state => STATE_WAIT_ADDR_L
 
     ; wait for ~N64_ALEL
-    wait 0 gpio 16
+    wait 0 gpio 16 [2]
 
     ; Sample AD0 -> AD15, put in ISR
     in pins, 16
@@ -93,7 +93,7 @@ wait_for_not_read_or_aleh:
     out pindirs, 32
 
     ; wait for N64_READ
-    wait 1 gpio 19
+    wait 1 gpio 19 [2]
 
     ; state => WAIT_READ_H
 
