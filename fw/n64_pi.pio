@@ -41,8 +41,11 @@ pi_start:
     ; TODO: Can we use autopush?
     push
 
+    ; clear fifo
     pull noblock
-    ;pull noblock
+    pull noblock
+    pull noblock
+    pull noblock
 
 .wrap_target
 wait_for_not_read_or_aleh:
@@ -142,7 +145,8 @@ void pi_program_init(PIO pio, uint sm, uint offset) {
     // JMP pin = ALEH
     sm_config_set_jmp_pin(&c, 17);
 
-    //sm_config_set_clkdiv( &c, 2.00f );
+    //
+    //sm_config_set_clkdiv( &c, 1.60f );
 
     pio_sm_init(pio, sm, offset, &c);
 }

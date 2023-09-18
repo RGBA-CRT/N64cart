@@ -88,6 +88,20 @@ void n64_pi_restart(void)
     // multicore_launch_core1(n64_pi);
 }
 
+void dump(uint8_t* address, size_t size){
+
+    for(int of=0; of<size;of+=16){
+        printf("%08x ",address+of);
+        for(int i=0;i<16;i++){
+            printf("%02x ",address[of+i]);
+        }
+        for(int i=0;i<16;i++){
+            uint8_t b=address[of+i];
+            printf("%c",(b<0x20) ? '.' : ((b>=0x80) ? '.' : b));
+        }
+        printf("\n");
+    }
+}
 #if PI_SRAM
 // const uint8_t __aligned(4096) __in_flash("n64_sram") n64_sram[SRAM_SIZE];
 
@@ -110,16 +124,7 @@ void n64_save_sram(void)
     flash_set_config(g_flash_info);
 
     printf("done.\n");
-    for(int of=0; of<16*8;of+=16){
-        for(int i=0;i<16;i++){
-            printf("%02x ",sram_8[of+i]);
-        }
-        for(int i=0;i<16;i++){
-            uint8_t b=sram_8[of+i];
-            printf("%c",(b<0x20) ? '.' : ((b>=0x80) ? '.' : b));
-        }
-        printf("\n");
-    }
+    dump(sram_8, 16*8);
 }
 #endif
 
@@ -161,6 +166,7 @@ int main(void)
     printf("sram: RAM=%x, flash=%x %d\n", sram_8, flash_sram_start, SRAM_SIZE);
     flash_set_ea_reg(0);
     memcpy(sram_8, (void*)flash_sram_start, SRAM_SIZE);
+    dump(sram_8, 16*8);
 
     for(uint8_t j=0;j<rom_pages;j++){
         game_select(j);

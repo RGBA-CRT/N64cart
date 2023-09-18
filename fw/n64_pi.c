@@ -113,7 +113,7 @@ last_addr=0x10000000;
 	    if ((last_addr == 0x10000000)) {
 		word = 0x3780;
 		pio_sm_put_blocking(pio, 0, swap8(word));
-		// last_addr += 2;
+		last_addr += 2;
 #if PI_SRAM
 		word = pi_bus_freq;
 		//word = 0x40FF;
@@ -132,7 +132,7 @@ last_addr=0x10000000;
 		continue;
 	    } else if (last_addr >= 0x10000000 && last_addr <= 0x13FFFFFF/*0x1FBFFFFF*/) {
 		pi_xip_offset = (last_addr & 0x00FFFFFF)>>1;
-		// bulk_start = last_addr;
+		bulk_start = last_addr;
 		do {
 		    word = rom_file_16[pi_xip_offset];
  hackentry:
@@ -191,13 +191,15 @@ last_addr=0x10000000;
 	// 	/* 64DD not supported */
 	// 	word = 0x64dd;
 	    } else {
-		word = 0xdead;
 		bulk_start=last_addr;
-		// printf("D_%x\n", last_addr);
-		pio_sm_put_blocking(pio, 0, word);
-		// last_addr += 2;
-		
-		addr = pio_sm_get_blocking(pio, 0);
+		do {
+			word = 0xdead;
+			// printf("D_%x\n", last_addr);
+			pio_sm_put_blocking(pio, 0, word);
+			last_addr += 2;
+			
+			addr = pio_sm_get_blocking(pio, 0);
+		} while (addr == 0);
 		continue;
 	    }
 	} else if (addr & 0x1) {
@@ -205,7 +207,9 @@ last_addr=0x10000000;
 #if PI_SRAM
 	    if (last_addr >= 0x08000000 && last_addr <= 0x0FFFFFFF) {
 		bulk_start = last_addr;
-		last_addr&=0xFFFFFFF0;
+		if((last_addr & 0x0F)==2){
+			last_addr-=2;
+		}
 		// printf("W%x\n",bulk_start);
 		do {
 		    sram_16[(last_addr & (SRAM_SIZE-1)) >> 1] = addr >> 16;
@@ -227,6 +231,8 @@ last_addr=0x10000000;
 	    } else if (last_addr == 0x1fd0100e) {
 		int page = (addr >> 16);
 		game_select(page);
+	    }else{
+		// printf("WD_%x\n", last_addr);
 	    }
 
 	    last_addr += 2;

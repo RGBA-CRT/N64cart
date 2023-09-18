@@ -594,6 +594,7 @@ void cic_run(void)
     printf("H");
 
 uint32_t last_latency, last_mbd, last_blk_adr;
+int c;
     while(check_running())
     {
         // read mode (2 bit)
@@ -619,6 +620,8 @@ uint32_t last_latency, last_mbd, last_blk_adr;
             printf("B%x %d\n", bulk_start, bulk_cnt);
             last_blk_adr = bulk_start;
         }
+        if((c++ % 400)==0)
+            printf("l%x %x\n", last_addr);
         switch (cmd)
         {
         case 0:
