@@ -66,7 +66,7 @@ uint16_t get_pi_bus_freq(void)
 }
 
 
-// #define FIFO_LOOK_AHEAD
+#define FIFO_LOOK_AHEAD
 uint32_t last_addr = 0;
 uint8_t pi_last_page = 0;
 uint32_t flash_bank_available;
@@ -128,6 +128,8 @@ void n64_pi(void)
 //     uint32_t start;
     uint32_t bulk_start;
 
+n64_pi_start:
+    printf("N64 PI engine start.\n");
     // Wait for reset to be released
     while (gpio_get(N64_COLD_RESET) == 0) {
 	tight_loop_contents();
@@ -139,8 +141,9 @@ last_addr=0x10000000;
     uint32_t addr = pio_sm_get_blocking(pio, 0);
     do {    	
 	if (addr == 0) {
-	    bulk_start = last_addr;
+	//     bulk_start = last_addr;
 	    n64_bus_bulk_read_init(last_addr);
+	    pio_sm_clear_fifos(pio, 0);
 	    // from PIO: READ REQUEST
 		do {
 		    word = n64_bus_bulk_read_word(last_addr);
@@ -166,46 +169,47 @@ last_addr=0x10000000;
 #endif
 		} while (addr == 0);
 		
-		if((bulk_start>>24) == 0x08){
-			bulk_cnt = (last_addr-bulk_start);
-			bulk_start_copy = bulk_start;
-		}
-		if(romdisp_en)
-			printf("R%08X %d %x\n", bulk_start, bulk_cnt,addr);
+		// if((bulk_start>>24) == 0x08){
+		// 	bulk_cnt = (last_addr-bulk_start);
+		// 	bulk_start_copy = bulk_start;
+		// }
+		// if(romdisp_en)
+		// 	printf("R%08X %d %x\n", bulk_start, bulk_cnt,addr);
 			
-		pio_sm_clear_fifos(pio, 0);
 		
 	    	last_addr=bulk_start;
 		continue;
 		
 	    
 	} else if (addr & 0x1) {
-	    bulk_start = last_addr;
+	//     bulk_start = last_addr;
 		// printf("W%x %x\n", last_addr, addr);
 	    // from PIO: WRITE
 #if PI_SRAM
 	    if (last_addr >= 0x08000000 && last_addr <= 0x0FFFFFFF) {
-		bulk_start = last_addr;
+		// bulk_start = last_addr;
 		// if((last_addr == 0x08000002)){
 		// 	last_addr-=2;
 		// }
 		// printf("W%x\n",bulk_start);
-		int write_margin = 0;
+		// int write_margin = 0;
 		n64_bus_bulk_word_offset = (last_addr & (SRAM_SIZE-1))>>1;
+		bulk_start = n64_bus_bulk_word_offset;
 		do {
-		    sram_16[n64_bus_bulk_word_offset++] = swap8(addr >> 16);
-		    last_addr += 2;
+		    sram_16[n64_bus_bulk_word_offset++] = (addr >> 16);
+		//     sram_16[n64_bus_bulk_word_offset++] = swap8(addr >> 16);
+		//     last_addr += 2;
 		write_check_rx_fifo:
 		    if(pio_sm_is_rx_fifo_empty(pio, 0)){
-			write_margin++;
+			// write_margin++;
 			goto write_check_rx_fifo;
 		    }
 		    addr = pio_sm_get(pio, 0);
 		} while (addr & 0x01);
 		
-		// bulk_cnt=(last_addr-bulk_start) | 0x80000000;
-		bulk_cnt=write_margin<<16 | (last_addr-bulk_start) | 0x80000000;
-		bulk_start_copy = bulk_start;
+		bulk_cnt=(n64_bus_bulk_word_offset-bulk_start)<<1 | 0x80000000;
+		// bulk_cnt=write_margin<<16 | (last_addr-bulk_start) | 0x80000000;
+		bulk_start_copy = last_addr;
 		g_is_n64_sram_write = true;
 
 		continue;
@@ -228,7 +232,7 @@ last_addr=0x10000000;
 
 	} else {
 #ifdef FIFO_LOOK_AHEAD
-		pio_sm_clear_fifos(pio, 0);
+		//  pio_sm_clear_fifos(pio, 0);
 #endif
 		// start = tick_get();
 	    /* from PIO: ADDRESS SET*/
@@ -257,6 +261,12 @@ last_addr=0x10000000;
 		// if( (last_addr & 0x0FFFFFFF) > n64_rom_size){
 		// 	printf("%x\n", last_addr);
 		// }
+	    } else if (last_addr >= 0x08000000 && last_addr <= 0x0FFFFFFF) {
+		// addr = pio_sm_get_blocking(pio, 0);
+		// continue;
+	    } else {
+		addr = pio_sm_get_blocking(pio, 0);
+		continue;
 	    }
 	}
 	if(pio_sm_is_rx_fifo_empty(pio, 0)){
@@ -265,6 +275,8 @@ last_addr=0x10000000;
 		addr = pio_sm_get(pio, 0);
 	}
     } while (1);
+
+//     goto n64_pi_start;
 }
 
 

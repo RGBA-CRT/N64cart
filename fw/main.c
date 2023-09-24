@@ -84,8 +84,8 @@ static void show_sysinfo(void)
 
 void n64_pi_restart(void)
 {
-    // multicore_reset_core1();
-    // multicore_launch_core1(n64_pi);
+    multicore_reset_core1();
+    multicore_launch_core1(n64_pi);
 }
 
 void dump(uint8_t* address, size_t size){

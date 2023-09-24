@@ -16,6 +16,12 @@ pi_start:
     mov osr, null
     out pindirs, 32
 
+    ; clear fifo
+    pull noblock
+    pull noblock
+    pull noblock
+    ;pull noblock
+
     ; state => STATE_START
 
     ; wait for N64_ALEH
@@ -43,11 +49,6 @@ pi_start:
     ; TODO: Can we use autopush?
     push
 
-    ; clear fifo
-    pull noblock
-    pull noblock
-    ;pull noblock
-    ;pull noblock
 
 .wrap_target
 wait_for_not_read_or_aleh:
@@ -111,7 +112,8 @@ handle_write:
     mov x, ~null
     in x, 16
 
-    push
+    push 
+
     ; wait for N64_WRITE ; ref: dreamdrive64
     wait 1 gpio 18
 
