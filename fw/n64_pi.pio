@@ -9,6 +9,8 @@
 ; For debugging, `set pins, 0` up to `3` may be used
 
 pi_start:
+    ; Clear ISR (needed when jumping here manually from C-code quickly)  ; from dreamdrive64
+    mov isr, null
 
     ; Change IO dir of all pins to INPUT
     mov osr, null
@@ -32,7 +34,7 @@ pi_start:
     ; state => STATE_WAIT_ADDR_L
 
     ; wait for ~N64_ALEL
-    wait 0 gpio 16 [2]
+    wait 0 gpio 16
 
     ; Sample AD0 -> AD15, put in ISR
     in pins, 16
@@ -44,7 +46,7 @@ pi_start:
     ; clear fifo
     ;pull noblock
     ;pull noblock
-    ;pull noblock
+    pull noblock
     pull noblock
 
 .wrap_target
@@ -78,7 +80,7 @@ wait_for_not_read_or_aleh:
 
     ; Send a "give me 16 bits!" command (null address)
     ; ISR is 0 at this moment
-    push
+    push noblock
 
     ; Read data from c code into OSR
     pull
@@ -93,7 +95,7 @@ wait_for_not_read_or_aleh:
     out pindirs, 32
 
     ; wait for N64_READ
-    wait 1 gpio 19 [2]
+    wait 1 gpio 19 
 
     ; state => WAIT_READ_H
 
@@ -101,15 +103,15 @@ wait_for_not_read_or_aleh:
 
 handle_write:
 
+    ; wait for N64_WRITE ; ref: dreamdrive64
+    wait 1 gpio 18
+
     ; Sample AD0 -> AD15, put in ISR
     in pins, 16
 
     ; encode 1 in lsb
     mov x, ~null
     in x, 16
-
-    ; wait for N64_WRITE
-    wait 1 gpio 18
 
     push
 
@@ -126,7 +128,7 @@ void pi_program_init(PIO pio, uint sm, uint offset) {
 
     // AD0 -> AD15 input
     // gpio 0 -> 22 are input for now
-    pio_sm_set_consecutive_pindirs(pio, sm, 0, 19, false);
+    pio_sm_set_consecutive_pindirs(pio, sm, 0, 16, false);
 
     pio_sm_config c = pi_program_get_default_config(offset);
 
