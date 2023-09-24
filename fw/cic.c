@@ -607,7 +607,7 @@ int c;
         extern uint32_t last_addr;
         extern uint32_t max_byte_delay;
         extern uint32_t max_byte_addr;
-        extern uint32_t bulk_start, bulk_cnt;
+        extern uint32_t bulk_start_copy, bulk_cnt;
         if(last_latency!=latency){
             printf("$%x %x %x\n", latency_addr, latency, max_byte_delay);
             last_latency=latency;
@@ -616,9 +616,14 @@ int c;
             printf("M%x %x %x\n", max_byte_addr, latency, max_byte_delay);
             last_mbd=max_byte_delay;
         }
-        if(last_blk_adr!=bulk_start){
-            printf("B%x %d\n", bulk_start, bulk_cnt);
-            last_blk_adr = bulk_start;
+        if(last_blk_adr!=bulk_start_copy){
+            printf("B%c %08x %d %d\n", 
+                (bulk_cnt<=0x1000) ? 'R' : 'W',
+                bulk_start_copy, 
+                (bulk_cnt>>16) & 0x7fff,
+                bulk_cnt & 0xffff);
+            last_blk_adr = bulk_start_copy;
+            // }
         }
         if((c++ % 400)==0)
             printf("l%x %x\n", last_addr);

@@ -165,7 +165,7 @@ int main(void)
     printf("sram: RAM=%x, flash=%x %d\n", sram_8, flash_sram_start, SRAM_SIZE);
     flash_set_ea_reg(0);
     memcpy(sram_8, (void*)flash_sram_start, SRAM_SIZE);
-    // memset(sram_8, 0xFF, sizeof(sram_8));
+    memset(sram_8, 0xFF, sizeof(sram_8));
     dump(sram_8, 16*8);
 
     for(uint8_t j=0;j<rom_pages;j++){

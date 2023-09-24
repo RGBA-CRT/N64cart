@@ -44,10 +44,10 @@ pi_start:
     push
 
     ; clear fifo
-    ;pull noblock
-    ;pull noblock
     pull noblock
     pull noblock
+    ;pull noblock
+    ;pull noblock
 
 .wrap_target
 wait_for_not_read_or_aleh:
@@ -83,7 +83,7 @@ wait_for_not_read_or_aleh:
     push noblock
 
     ; Read data from c code into OSR
-    pull
+    pull 
 
     ; Write 16 bits from OSR to pins
     out pins, 16
@@ -103,8 +103,6 @@ wait_for_not_read_or_aleh:
 
 handle_write:
 
-    ; wait for N64_WRITE ; ref: dreamdrive64
-    wait 1 gpio 18
 
     ; Sample AD0 -> AD15, put in ISR
     in pins, 16
@@ -114,6 +112,8 @@ handle_write:
     in x, 16
 
     push
+    ; wait for N64_WRITE ; ref: dreamdrive64
+    wait 1 gpio 18
 
 .wrap             ; Handle PI transactions forever!
 
