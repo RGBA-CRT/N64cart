@@ -65,6 +65,8 @@ uint16_t get_pi_bus_freq(void)
     return pi_bus_freq;
 }
 
+
+// #define FIFO_LOOK_AHEAD
 uint32_t last_addr = 0;
 uint8_t pi_last_page = 0;
 uint32_t flash_bank_available;
@@ -74,6 +76,32 @@ uint8_t pi_game_page_origin;
 uint32_t latency, max_byte_delay,max_byte_addr,latency_addr;
 uint32_t bulk_start, bulk_cnt;
 #include "tick.h"
+
+
+static uint32_t n64_bus_bulk_word_offset;
+static inline void n64_bus_bulk_read_init(uint32_t address){
+	// bulk_start = last_addr;
+	if (address >= 0x10000000 && address <= 0x13FFFFFF) {
+		n64_bus_bulk_word_offset = (address & 0x00FFFFFF)>>1;
+	} else if (address >= 0x08000000 && address <= 0x0FFFFFFF) {
+		n64_bus_bulk_word_offset = (address & (SRAM_SIZE-1))>>1;
+		bulk_start = last_addr;
+	}
+	
+}
+static inline uint16_t n64_bus_bulk_read_word(uint32_t address){
+	// バッファオーバーラン許して
+	if (address == 0x10000002) {
+		n64_bus_bulk_word_offset++;
+		return pi_bus_freq;
+	} else if (address >= 0x10000000 && address <= 0x13FFFFFF) {
+		return rom_file_16[n64_bus_bulk_word_offset++];
+	} else if (address >= 0x08000000 && address <= 0x0FFFFFFF) {
+		return sram_16[n64_bus_bulk_word_offset++];
+	} else {
+		return 0xDEAD;
+	}
+}
 
 static void inline pi_bank_change(uint8_t page){
 	rom_file_16 = (uint16_t *) (rom_start[page]);
@@ -103,42 +131,23 @@ void n64_pi(void)
     while (gpio_get(N64_COLD_RESET) == 0) {
 	tight_loop_contents();
     }
+    bool romdisp_en = false;
 
 last_addr=0x10000000;
     uint32_t word;
     uint32_t addr = pio_sm_get_blocking(pio, 0);
     do {    	
 	if (addr == 0) {
+	//     bulk_start = last_addr;
+	    n64_bus_bulk_read_init(last_addr);
 	    // from PIO: READ REQUEST
-	    if ((last_addr == 0x10000000)) {
-		word = 0x3780;
-		pio_sm_put_blocking(pio, 0, swap8(word));
-		last_addr += 2;
-#if PI_SRAM
-		word = pi_bus_freq;
-		//word = 0x40FF;
-		//word = 0x4020;
-#else
-		word = pi_bus_freq;
-		//word = 0x401c;
-		//word = 0x4012;
-#endif
-		addr = pio_sm_get_blocking(pio, 0);
-		if (addr == 0) {
-		    pi_xip_offset = 1;
-		    goto hackentry;
-		}
-
-		continue;
-	    } else if (last_addr >= 0x10000000 && last_addr <= 0x13FFFFFF/*0x1FBFFFFF*/) {
-		pi_xip_offset = (last_addr & 0x00FFFFFF)>>1;
-		bulk_start = last_addr;
 		do {
-		    word = rom_file_16[pi_xip_offset];
- hackentry:
-		    pio_sm_put_blocking(pio, 0, swap8(word));
-			pi_xip_offset++;
+		    word = n64_bus_bulk_read_word(last_addr);
+		    last_addr+=2;
 		    
+		    pio_sm_put_blocking(pio, 0, swap8(word));
+		//     printf("r%08X %04x\n", last_addr-2, word);
+#ifdef FIFO_LOOK_AHEAD
 		check_rx_fifo:
 		    if(pio_sm_is_rx_fifo_empty(pio, 0)){
 			// 指示はまだない
@@ -150,59 +159,17 @@ last_addr=0x10000000;
 				continue;
 			}
 		    }
-		
 		    addr = pio_sm_get(pio, 0);
-		} while (addr == 0);
-		bulk_cnt = (pi_xip_offset<<1) - (bulk_start & 0x00FFFFFF);
-		//pio_sm_clear_fifos(pio, 0);
-
-		continue;
-#if PI_SRAM
-	    } else if (last_addr >= 0x08000000 && last_addr <= 0x0FFFFFFF) {
-		do {
-		    word = sram_16[(last_addr & (SRAM_SIZE-1)) >> 1];
-
-		    pio_sm_put(pio, 0, word);
-		    last_addr += 2;
+#else
 		    addr = pio_sm_get_blocking(pio, 0);
-		} while (addr == 0);
-
-		continue;
 #endif
-	//     } else if (last_addr >= 0x1fd80000) {
-	// 	do {
-	// 	    word = rom_jpeg_16[(last_addr & 0xFFFF) >> 1];
-
-	// 	    pio_sm_put(pio, 0, swap8(word));
-	// 	    last_addr += 2;
-	// 	    addr = pio_sm_get_blocking(pio, 0);
-	// 	} while (addr == 0);
-
-	// 	continue;
-	//     } else if (last_addr == 0x1fd01002) {
-	// 	word =
-	// 	    ((uart_get_hw(UART_ID)->fr & UART_UARTFR_TXFF_BITS) ? 0x00 : 0x0200) |
-	// 	    ((uart_get_hw(UART_ID)->fr & UART_UARTFR_RXFE_BITS) ? 0x00 : 0x0100) | 0xf000;
-	//     } else if (last_addr == 0x1fd01006) {
-	// 	word = uart_get_hw(UART_ID)->dr << 8;
-	//     } else if (last_addr == 0x1fd0100c) {
-	// 	word = rom_pages << 8;
-	//     } else if ((last_addr>>24) == 0x06) {
-	// 	/* 64DD not supported */
-	// 	word = 0x64dd;
-	    } else {
-		bulk_start=last_addr;
-		do {
-			word = 0xdead;
-			pio_sm_put_blocking(pio, 0, word);
-			last_addr += 2;
-			
-			addr = pio_sm_get_blocking(pio, 0);
 		} while (addr == 0);
-		bulk_cnt = last_addr-bulk_start;
-		// printf("D%x %d\n", bulk_start, bulk_cnt);
+		bulk_cnt = ((last_addr-bulk_start) & 0x00FFFFFF);
+		if(romdisp_en)
+			printf("R%08X %d %x\n", bulk_start, bulk_cnt,addr);
 		continue;
-	    }
+		
+	    
 	} else if (addr & 0x1) {
 		// printf("W%x %x\n", last_addr, addr);
 	    // from PIO: WRITE
@@ -240,8 +207,9 @@ last_addr=0x10000000;
 	    last_addr += 2;
 
 	} else {
-		
+#ifdef FIFO_LOOK_AHEAD
 		pio_sm_clear_fifos(pio, 0);
+#endif
 		// start = tick_get();
 	    /* from PIO: ADDRESS SET*/
 	    last_addr = addr;
