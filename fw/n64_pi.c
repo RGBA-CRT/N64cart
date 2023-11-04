@@ -22,7 +22,10 @@
 
 #include "rom.h"
 
-static uint16_t *rom_file_16;
+uint16_t *rom_file_16_piptr;
+
+#define rom_file_16(adr) rom_file_16_piptr[adr]
+
 // static uint16_t *rom_jpeg_16;
 
 static uint16_t pi_bus_freq = 0x40ff;
@@ -95,7 +98,7 @@ static inline uint16_t n64_bus_bulk_read_word(uint32_t address){
 		n64_bus_bulk_word_offset++;
 		return pi_bus_freq;
 	} else if (address >= 0x10000000 && address <= 0x13FFFFFF) {
-		return rom_file_16[n64_bus_bulk_word_offset++];
+		return rom_file_16(n64_bus_bulk_word_offset++);
 	} else if (address >= 0x08000000 && address <= 0x0FFFFFFF) {
 		return sram_16[n64_bus_bulk_word_offset++];
 		// return sram_16[ (address & (SRAM_SIZE-1))>>1 ];
@@ -105,7 +108,7 @@ static inline uint16_t n64_bus_bulk_read_word(uint32_t address){
 }
 
 static void inline pi_bank_change(uint8_t page){
-	rom_file_16 = (uint16_t *) (rom_start[page]);
+	rom_file_16_piptr = (uint16_t *) (rom_start[page]);
 	flash_set_ea_reg_light(page);
 }
 
@@ -128,13 +131,13 @@ void n64_pi(void)
 //     uint32_t start;
     uint32_t bulk_start;
 
-n64_pi_start:
+// n64_pi_start:
     printf("N64 PI engine start.\n");
     // Wait for reset to be released
     while (gpio_get(N64_COLD_RESET) == 0) {
 	tight_loop_contents();
     }
-    bool romdisp_en = false;
+//     bool romdisp_en = false;
 
 last_addr=0x10000000;
     uint32_t word;
@@ -280,12 +283,25 @@ last_addr=0x10000000;
 }
 
 
+uint32_t inline rom_file_32(uint32_t addr){
+	return rom_file_16(addr/2) | rom_file_16(addr/2+1)<<16;
+}
+
+uint8_t inline rom_file_8(uint32_t addr){
+	if(addr%2) {
+		return rom_file_16(addr/2) >> 8;
+	}else{
+		return rom_file_16(addr/2) & 0xFF;
+	}
+}
+
+
 void slove_mapped_rom(int id){
 	n64_rom_size = rom_size[id];
 	for(int i=id+1; i<(id+rom_pages-1); i++){
 		int cur_id = i % rom_pages;
 		pi_bank_change(cur_id);
-		enum CicType type = cic_easy_detect(*((uint32_t*)(&rom_file_16[CIC_DETECT_OFFSET/2])));
+		enum CicType type = cic_easy_detect(rom_file_32(CIC_DETECT_OFFSET));
 		if(type == _CicTypeMax_){
 			n64_rom_size+=rom_size[cur_id];
 		}else{
@@ -296,6 +312,24 @@ void slove_mapped_rom(int id){
 	// flash_set_ea_reg(id);
 	// printf("%s: decision: %dMB\n", __func__, n64_rom_size/1024/1024);
 }
+void dump_n64(uint32_t address, size_t size){
+    for(int of=0; of<size;of+=16){
+        printf("%08x ",address+of);
+        for(int i=0;i<16;i++){
+            printf("%02x ",rom_file_8(of+i));
+        }
+        for(int i=0;i<16;i++){
+            uint8_t b=rom_file_8(of+i);
+            printf("%c",(b<0x20) ? '.' : ((b>=0x80) ? '.' : b));
+        }
+        printf("\n");
+    }
+}
+void memcpy_n64(void* dst, uint32_t src, uint32_t size){
+	for(uint32_t i=0;i<size/2; i++){
+		((uint16_t*)dst)[i] = rom_file_16((src>>1)+i);
+	}
+}
 
 void game_select(int id){
 	id = id % rom_pages;
@@ -305,8 +339,8 @@ void game_select(int id){
 	// pi_page_size = rom_size[id];
 	pi_game_page_origin = id;
 
-	char title[21];
-	strncpy(title, (char*)&rom_file_16[0x20/2], sizeof(title));
+	char title[21]={"DUMMY"};
+	memcpy_n64(title, 0x00000020, sizeof(title));
 	title[20] = '\0';
 
 	if(strcmp(title, "PicoCart64 Test ROM") == 0){
@@ -314,8 +348,9 @@ void game_select(int id){
 		n64_rom_size = 16*1024*1024*4;
 	}
 
-	enum CicType type = cic_easy_detect(*((uint32_t*)(&rom_file_16[CIC_DETECT_OFFSET/2])));
+	enum CicType type = cic_easy_detect(rom_file_32(CIC_DETECT_OFFSET));
 	select_cic(type);
 
 	printf("Select bank:%d, CIC type: %s, title: %s, %dMB\n", id, cic_get_name(type), title, n64_rom_size/1024/1024);
+	dump_n64(id << 24, 16*8);
 }
