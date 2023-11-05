@@ -199,17 +199,13 @@ void inline W25Q_enter_command_mode(){
 }
 
 void inline xip_enter_command_mode(){
+    // stop continous read mode
+    ssi_hw->dr0 = 0xFADECAFE; // dummy address
+    ssi_hw->dr0 = 0x00000000; // exit continous
+    WAIT_SSI_TX();
 
     W25Q_enter_command_mode();
 
-    // Stop XIP cs control. by dummy command
-    // const uint8_t txbuf = 0x9f;
-    // uint8_t rxbuf;
-    // xflash_do_cmd_internal(&txbuf, &rxbuf, 1);
-    
-    // flash_cs_force(0);
-    ssi_hw->dr0 = 0x9f;
-    WAIT_SSI_TX();
     // flash_cs_force(1);
 }
 
@@ -257,6 +253,7 @@ void inline xip_exit_command_mode(){
     // ssi_hw->dr0 = 0xEC; // 8bit command
     // ssi_hw->dr0 = 0xA0; // 32bit {address bits + mode bit(continus)}
     // ssi_hw->dr0 = 0xA0; // 32bit dummy address
+    ssi_hw->dr0 = 0xec;
     flash_quad_read16_EC(0x01000000);
 
     // dummy readコマンド街
@@ -273,24 +270,29 @@ void inline xip_exit_command_mode(){
     //     << SSI_SPI_CTRLR0_INST_L_LSB) | 
     // (SSI_SPI_CTRLR0_TRANS_TYPE_VALUE_2C2A      /* Send Address in Quad I/O mode (and Command but that is zero bits long) */ 
     //     << SSI_SPI_CTRLR0_TRANS_TYPE_LSB);
+    const uint32_t xip_spi_ctrl0 =
+        ((40 /*bits*/ / 4) << SSI_SPI_CTRLR0_ADDR_L_LSB) |     /* Address + mode bits */
+        ((4 /* clocks */) << SSI_SPI_CTRLR0_WAIT_CYCLES_LSB) | /* Hi-Z dummy clocks following address + mode */
+        (SSI_SPI_CTRLR0_INST_L_VALUE_NONE << SSI_SPI_CTRLR0_INST_L_LSB) |        /* 8-bit instruction */
+        (SSI_SPI_CTRLR0_TRANS_TYPE_VALUE_2C2A << SSI_SPI_CTRLR0_TRANS_TYPE_LSB);      /* Send Command in serial mode then address in Quad I/O mode */
+              
+
+    ssi_hw->ssienr = 0;
+    // (void) ssi_hw->sr;
+    // (void) ssi_hw->icr;
+    ssi_hw->spi_ctrlr0 = xip_spi_ctrl0;    
       
+    // hw_write_masked(&ioqspi_hw->io[1].ctrl,
+    //     IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_VALUE_NORMAL << IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_LSB,
+    //     IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_BITS
+    // );
 
-    // ssi_hw->ssienr = 0;
-    // // (void) ssi_hw->sr;
-    // // (void) ssi_hw->icr;
-    // ssi_hw->spi_ctrlr0 = xip_spi_ctrl0;    
-      
-    // // hw_write_masked(&ioqspi_hw->io[1].ctrl,
-    // //     IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_VALUE_NORMAL << IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_LSB,
-    // //     IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_BITS
-    // // );
+    ssi_hw->ssienr = 1;
 
-    // ssi_hw->ssienr = 1;
-
-    // // for(int i=0;i<32;i++){
-    // //     printf("%02x ", ((uint8_t*)XIP_BASE)[i]);
-    // // }
-    // // printf(": XIP ACCESS after\n");
+    // for(int i=0;i<32;i++){
+    //     printf("%02x ", ((uint8_t*)XIP_BASE)[i]);
+    // }
+    // printf(": XIP ACCESS after\n");
     
 }
 
@@ -420,9 +422,9 @@ uint16_t __no_inline_not_in_flash_func(flash_quad_read16_EC)(uint32_t addr)
     // flash_cs_force(0);
 
     // WAIT_SSI_TX();
-    ssi_hw->dr0 = 0xec;
+    // ssi_hw->dr0 = 0xec;
     ssi_hw->dr0 = addr;
-    ssi_hw->dr0 = 0xFADECAFE; //dummy byte
+    ssi_hw->dr0 = 0xA0A0A0A0; //dummy byte
 
     // WAIT_SSI_TX();
     while (!(ssi_hw->sr & SSI_SR_RFNE_BITS))/* {printf("%%");}*/;
