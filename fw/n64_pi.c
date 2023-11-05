@@ -24,7 +24,8 @@
 
 uint16_t *rom_file_16_piptr;
 
-#define rom_file_16(adr) rom_file_16_piptr[adr]
+// #define rom_file_16(adr) rom_file_16_piptr[adr]
+#define rom_file_16(adr) flash_quad_read16_EC(adr<<1)
 
 // static uint16_t *rom_jpeg_16;
 
@@ -331,6 +332,20 @@ void memcpy_n64(void* dst, uint32_t src, uint32_t size){
 	}
 }
 
+void dump2(uint8_t* address, size_t size){
+
+    for(int of=0; of<size;of+=16){
+        printf("%08x ",address+of);
+        for(int i=0;i<16;i++){
+            printf("%02x ",address[of+i]);
+        }
+        for(int i=0;i<16;i++){
+            uint8_t b=address[of+i];
+            printf("%c",(b<0x20) ? '.' : ((b>=0x80) ? '.' : b));
+        }
+        printf("\n");
+    }
+}
 void game_select(int id){
 	id = id % rom_pages;
 	slove_mapped_rom(id);
@@ -353,4 +368,25 @@ void game_select(int id){
 
 	printf("Select bank:%d, CIC type: %s, title: %s, %dMB\n", id, cic_get_name(type), title, n64_rom_size/1024/1024);
 	dump_n64(id << 24, 16*8);
+
+	// uint8_t buf[16];
+	// printf("memcpy 0x00A5EFCC\n");
+	// memcpy_n64(buf, 0x00A5EFCC, 16);
+	// printf("=========END memcpy 0x00A5EFCC\n");
+	// dump2(buf, 16);
+	
+	// printf("memcpy 0x01223344\n");
+	// memcpy_n64(buf, 0x01223344, 16);
+	// printf("=========END memcpy 0x01223344\n");
+	// dump2(buf, 16);
+
+	// printf("memcpy 0x00000000\n");
+	// memcpy_n64(buf, 0x00000000, 16);
+	// printf("=========END memcpy 0x00000000\n");
+	// dump2(buf, 16);
+
+	// printf("memcpy 0x00000020\n");
+	// memcpy_n64(buf, 0x00000020, 16);
+	// printf("=========END memcpy 0x00000020\n");
+	// dump2(buf, 16);
 }

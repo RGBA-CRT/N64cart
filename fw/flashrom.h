@@ -25,4 +25,5 @@ uint8_t flash_get_ea_reg(void);
 const struct FlashChip* flash_get_info();
 void flash_set_config(const struct FlashChip* chip_info);
 
+uint16_t flash_quad_read16_EC(uint32_t addr);
 #endif

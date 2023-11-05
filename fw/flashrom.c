@@ -22,7 +22,7 @@ static bool boot2_copyout_valid = false;
 static const struct FlashChip flash_chip_table[] = {
 //    { 0xef, 0x4020, 4, 16, 300000, 0x7012, 3, 2, "W25Q512" }, // Flashオーバークロック
 //    { 0xef, 0x4020, 4, 16, 291000, 0x7010, 2, 2, "W25Q512" }, // Flashオーバークロック
-   { 0xef, 0x4020, 4, 16, 291000, 0x7010, 3, 2, "W25Q512" }, // Flashオーバークロック
+   { 0xef, 0x4020, 4, 16, 291000, 0x7010, 7, 2, "W25Q512" }, // Flashオーバークロック
 //    { 0xef, 0x4020, 4, 16, (96000*3), 0x8060, 3, 2, "W25Q512" }, // ギリギリ動く
 //    { 0xef, 0x4020, 4, 16, (9/0000*3), 0x5540, 3, 2, "W25Q512" }, // ギリギリ動く
 //    { 0xef, 0x4020, 4, 16, (133000*3), 0x6c20, 4, 2, "W25Q512" }, // Firmの起動まではいく
@@ -176,7 +176,7 @@ void __no_inline_not_in_flash_func(flash_set_ea_reg)(uint8_t addr)
 
 // #define WAIT_SSI_TX() while( !(ssi_hw->sr & (SSI_SR_TFE_BITS)) )
 // #define WAIT_SSI_TX() while( (ssi_hw->sr & (SSI_SR_BUSY_BITS)) )
-#define WAIT_SSI_TX() while(((ssi_hw->sr & (SSI_SR_TFE_BITS | SSI_SR_BUSY_BITS)) ^ SSI_SR_TFE_BITS))
+#define WAIT_SSI_TX() while(((ssi_hw->sr & (SSI_SR_TFE_BITS | SSI_SR_BUSY_BITS)) ^ SSI_SR_TFE_BITS))/*{printf("$%d ",__LINE__);}*/
 
 void inline W25Q_enter_command_mode(){
     const uint32_t qspi_txrx =
@@ -254,8 +254,9 @@ void inline xip_exit_command_mode(){
     ssi_hw->ssienr = 1;
 
     // flash_cs_force(0);
-    ssi_hw->dr0 = 0xEB;
-    ssi_hw->dr0 = 0xA0;
+    ssi_hw->dr0 = 0xEB; // 8bit command
+    ssi_hw->dr0 = 0xA0; // 32bit {address bits + mode bit(continus)}
+    // ssi_hw->dr0 = 0xA0; // 32bit dummy address
 
     // dummy readコマンド街
     WAIT_SSI_TX();
@@ -263,32 +264,32 @@ void inline xip_exit_command_mode(){
 
     // NEXT, XIP用にレジスタを構成
 
-    const uint32_t xip_spi_ctrl0 =
-    (0xa0 << SSI_SPI_CTRLR0_XIP_CMD_LSB) |     /* Mode bits to keep flash in continuous read mode */ 
-    (8 << SSI_SPI_CTRLR0_ADDR_L_LSB) |         /* Total number of address + mode bits */ 
-    (4 << SSI_SPI_CTRLR0_WAIT_CYCLES_LSB) |    /* Hi-Z dummy clocks following address + mode */ 
-    (SSI_SPI_CTRLR0_INST_L_VALUE_NONE          /* Do not send a command, instead send XIP_CMD as mode bits after address */ 
-        << SSI_SPI_CTRLR0_INST_L_LSB) | 
-    (SSI_SPI_CTRLR0_TRANS_TYPE_VALUE_2C2A      /* Send Address in Quad I/O mode (and Command but that is zero bits long) */ 
-        << SSI_SPI_CTRLR0_TRANS_TYPE_LSB);
+    // const uint32_t xip_spi_ctrl0 =
+    // (0xa0 << SSI_SPI_CTRLR0_XIP_CMD_LSB) |     /* Mode bits to keep flash in continuous read mode */ 
+    // (8 << SSI_SPI_CTRLR0_ADDR_L_LSB) |         /* Total number of address + mode bits */ 
+    // (4 << SSI_SPI_CTRLR0_WAIT_CYCLES_LSB) |    /* Hi-Z dummy clocks following address + mode */ 
+    // (SSI_SPI_CTRLR0_INST_L_VALUE_NONE          /* Do not send a command, instead send XIP_CMD as mode bits after address */ 
+    //     << SSI_SPI_CTRLR0_INST_L_LSB) | 
+    // (SSI_SPI_CTRLR0_TRANS_TYPE_VALUE_2C2A      /* Send Address in Quad I/O mode (and Command but that is zero bits long) */ 
+    //     << SSI_SPI_CTRLR0_TRANS_TYPE_LSB);
       
 
-    ssi_hw->ssienr = 0;
-    // (void) ssi_hw->sr;
-    // (void) ssi_hw->icr;
-    ssi_hw->spi_ctrlr0 = xip_spi_ctrl0;    
+    // ssi_hw->ssienr = 0;
+    // // (void) ssi_hw->sr;
+    // // (void) ssi_hw->icr;
+    // ssi_hw->spi_ctrlr0 = xip_spi_ctrl0;    
       
-    // hw_write_masked(&ioqspi_hw->io[1].ctrl,
-    //     IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_VALUE_NORMAL << IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_LSB,
-    //     IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_BITS
-    // );
+    // // hw_write_masked(&ioqspi_hw->io[1].ctrl,
+    // //     IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_VALUE_NORMAL << IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_LSB,
+    // //     IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_BITS
+    // // );
 
-    ssi_hw->ssienr = 1;
+    // ssi_hw->ssienr = 1;
 
-    // for(int i=0;i<32;i++){
-    //     printf("%02x ", ((uint8_t*)XIP_BASE)[i]);
-    // }
-    // printf(": XIP ACCESS after\n");
+    // // for(int i=0;i<32;i++){
+    // //     printf("%02x ", ((uint8_t*)XIP_BASE)[i]);
+    // // }
+    // // printf(": XIP ACCESS after\n");
     
 }
 
@@ -410,4 +411,28 @@ uint8_t __no_inline_not_in_flash_func(flash_get_ea_reg)(void)
 #else
     return 0xFF;
 #endif
+}
+
+// from original repository: https://github.com/pdaxrom/N64cart/commit/798c9a9d0d922c8fda239acc1c7ed0fe3738c840
+uint16_t __no_inline_not_in_flash_func(flash_quad_read16_EC)(uint32_t addr)
+{
+    // flash_cs_force(0);
+
+    // WAIT_SSI_TX();
+    ssi_hw->dr0 = 0xec;
+    ssi_hw->dr0 = addr;
+    ssi_hw->dr0 = 0;
+
+    WAIT_SSI_TX();
+    while (!(ssi_hw->sr & SSI_SR_RFNE_BITS)) /*{printf("%%");}*/;
+    
+    uint32_t val = ssi_hw->dr0;
+    // uint32_t val2 = ssi_hw->dr0;
+
+    // flash_cs_force(1);
+
+    uint16_t val16 = val >> 16;
+    printf("A_%08x: %08x %08x\n", addr, val);
+
+    return val16;
 }
