@@ -25,7 +25,7 @@
 uint16_t *rom_file_16_piptr;
 
 // #define rom_file_16(adr) rom_file_16_piptr[adr]
-#define rom_file_16(adr) flash_quad_read16_EC(adr<<1)
+#define rom_file_16(adr) flash_quad_read16_EC((adr<<1))
 
 // static uint16_t *rom_jpeg_16;
 
@@ -317,10 +317,10 @@ void dump_n64(uint32_t address, size_t size){
     for(int of=0; of<size;of+=16){
         printf("%08x ",address+of);
         for(int i=0;i<16;i++){
-            printf("%02x ",rom_file_8(of+i));
+            printf("%02x ",rom_file_8(address+of+i));
         }
         for(int i=0;i<16;i++){
-            uint8_t b=rom_file_8(of+i);
+            uint8_t b=rom_file_8(address+of+i);
             printf("%c",(b<0x20) ? '.' : ((b>=0x80) ? '.' : b));
         }
         printf("\n");

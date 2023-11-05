@@ -52,13 +52,13 @@ static int rom_write(libusb_device_handle *dev_handle, int page, const char* fil
         fread(&type, 1, 4, inf);
         fprintf(stderr, "ROM type ");
         if (type == 0x40123780) {
-            type = 0;
+            type = 2;
             fprintf(stderr, "Z64\n");
         } else if (type == 0x80371240) {
-            type = 1;
+            type = 0;
             fprintf(stderr, "N64\n");
         } else if (type == 0x12408037) {
-            type = 2;
+            type = 1;
             fprintf(stderr, "V64\n");
         } else {
             fprintf(stderr, "Unknown\n\nError!\n");

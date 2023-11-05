@@ -234,8 +234,8 @@ void inline xip_exit_command_mode(){
         (SSI_CTRLR0_TMOD_VALUE_EEPROM_READ << SSI_CTRLR0_TMOD_LSB);    /* Send INST/ADDR, Receive Data */ 
 
     const uint32_t dummy_read_spi_ctrl0 =
-        ((32 /*bits*/ / 4) << SSI_SPI_CTRLR0_ADDR_L_LSB) |     /* Address + mode bits */
-        (( 4 /* clocks */) << SSI_SPI_CTRLR0_WAIT_CYCLES_LSB) | /* Hi-Z dummy clocks following address + mode */
+        ((40 /*bits*/ / 4) << SSI_SPI_CTRLR0_ADDR_L_LSB) |     /* Address + mode bits */
+        ((4 /* clocks */) << SSI_SPI_CTRLR0_WAIT_CYCLES_LSB) | /* Hi-Z dummy clocks following address + mode */
         (SSI_SPI_CTRLR0_INST_L_VALUE_8B << SSI_SPI_CTRLR0_INST_L_LSB) |        /* 8-bit instruction */
         (SSI_SPI_CTRLR0_TRANS_TYPE_VALUE_1C2A << SSI_SPI_CTRLR0_TRANS_TYPE_LSB);      /* Send Command in serial mode then address in Quad I/O mode */
         
@@ -254,9 +254,10 @@ void inline xip_exit_command_mode(){
     ssi_hw->ssienr = 1;
 
     // flash_cs_force(0);
-    ssi_hw->dr0 = 0xEB; // 8bit command
-    ssi_hw->dr0 = 0xA0; // 32bit {address bits + mode bit(continus)}
+    // ssi_hw->dr0 = 0xEC; // 8bit command
+    // ssi_hw->dr0 = 0xA0; // 32bit {address bits + mode bit(continus)}
     // ssi_hw->dr0 = 0xA0; // 32bit dummy address
+    flash_quad_read16_EC(0x01000000);
 
     // dummy readコマンド街
     WAIT_SSI_TX();
@@ -421,10 +422,10 @@ uint16_t __no_inline_not_in_flash_func(flash_quad_read16_EC)(uint32_t addr)
     // WAIT_SSI_TX();
     ssi_hw->dr0 = 0xec;
     ssi_hw->dr0 = addr;
-    ssi_hw->dr0 = 0;
+    ssi_hw->dr0 = 0xFADECAFE; //dummy byte
 
-    WAIT_SSI_TX();
-    while (!(ssi_hw->sr & SSI_SR_RFNE_BITS)) /*{printf("%%");}*/;
+    // WAIT_SSI_TX();
+    while (!(ssi_hw->sr & SSI_SR_RFNE_BITS))/* {printf("%%");}*/;
     
     uint32_t val = ssi_hw->dr0;
     // uint32_t val2 = ssi_hw->dr0;
@@ -432,7 +433,8 @@ uint16_t __no_inline_not_in_flash_func(flash_quad_read16_EC)(uint32_t addr)
     // flash_cs_force(1);
 
     uint16_t val16 = val >> 16;
-    printf("A_%08x: %08x %08x\n", addr, val);
+    // if((addr&0xFFF0F) == 0x0000)
+    //     printf("A_%8x: %08x %08x\n", addr, val,val2);
 
     return val16;
 }
