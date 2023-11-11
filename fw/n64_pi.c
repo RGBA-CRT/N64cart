@@ -104,11 +104,15 @@ static inline void n64_bus_bulk_read_init(uint32_t n64_pi_addr){
 }
 static inline uint16_t n64_bus_bulk_read_word(uint32_t n64_n64_pi_addr){
 	// バッファオーバーラン許して
-	if (n64_n64_pi_addr == 0x10000002) {
+	if (n64_n64_pi_addr >= 0x10000000 && n64_n64_pi_addr <= 0x13FFFFFF) {
+		uint16_t ret;
+		if(n64_bus_bulk_word_offset != 1){
+			ret = rom_file_16(n64_bus_bulk_word_offset << 1);
+		} else {
+			ret = pi_bus_freq;
+		}
 		n64_bus_bulk_word_offset++;
-		return pi_bus_freq;
-	} else if (n64_n64_pi_addr >= 0x10000000 && n64_n64_pi_addr <= 0x13FFFFFF) {
-		return rom_file_16(n64_bus_bulk_word_offset++ << 1);
+		return ret;
 	} else if (n64_n64_pi_addr >= 0x08000000 && n64_n64_pi_addr <= 0x0FFFFFFF) {
 		return sram_16[n64_bus_bulk_word_offset++];
 		// return sram_16[ (n64_pi_addr & (SRAM_SIZE-1))>>1 ];
@@ -202,7 +206,7 @@ last_addr=0x10000000;
 		//     last_addr+=2;
 		    
 		    pio_sm_put_blocking(pio, 0, swap8(word));
-		//     printf("r%08X %04x\n", last_addr-2, word);
+		//      printf("r%08X %04x\n", last_addr, word);
 #ifdef FIFO_LOOK_AHEAD
 		check_rx_fifo:
 		    if(pio_sm_is_rx_fifo_empty(pio, 0)){
