@@ -544,6 +544,41 @@ void check_sel_button(){
     }
 }
 
+uint32_t last_latency, last_mbd, last_blk_adr,last_last_addr;
+int c;
+void debug_value_print(){
+    extern uint32_t debug_value;
+    extern uint32_t latency;
+    extern uint32_t latency_addr;
+    extern uint32_t last_addr;
+    extern uint32_t max_byte_delay;
+    extern uint32_t max_byte_addr;
+    extern uint32_t bulk_start_copy, bulk_cnt;
+    if(last_latency!=latency){
+        printf("$%x %x %x\n", latency_addr, latency, max_byte_delay);
+        last_latency=latency;
+    }
+    if(last_mbd != max_byte_delay){
+        printf("M%x %x %x\n", max_byte_addr, latency, max_byte_delay);
+        last_mbd=max_byte_delay;
+    }
+    if(last_blk_adr!=bulk_start_copy){
+        uint32_t type = (bulk_cnt >> 24);
+
+        printf("B%c %08x %x %x\n", 
+            type==0x00 ? 'R' : (type==0x80 ? 'W' : (type==0xC0 ? '!' : '?')) ,
+            bulk_start_copy, 
+            (bulk_cnt>>16) & 0x3fff,
+            bulk_cnt & 0xffff);
+        last_blk_adr = bulk_start_copy;
+        // }
+    }
+    if(((c++ % 400)==0) && (last_addr!=last_last_addr)){
+        printf("l%x %x\n", last_addr, debug_value);
+        last_last_addr = last_addr;
+    }
+}
+
 void cic_run(void)
 {
     unsigned char isPal;
@@ -564,7 +599,10 @@ void cic_run(void)
         check_sel_button();
         tight_loop_contents();
     }
-    // while(1){check_sel_button();}
+    // while(1){
+    //     check_sel_button();
+    //     debug_value_print();
+    // }
 
     // read the region setting
     isPal = GET_REGION();
@@ -597,8 +635,6 @@ void cic_run(void)
     _CicMem[0x11] = ReadNibble();
     printf("H");
 
-uint32_t last_latency, last_mbd, last_blk_adr;
-int c;
     while(check_running())
     {
         // read mode (2 bit)
@@ -606,31 +642,6 @@ int c;
         cmd |= (ReadBit() << 1);
         cmd |= ReadBit();
         // printf("%x",cmd);
-        extern uint32_t latency;
-        extern uint32_t latency_addr;
-        extern uint32_t last_addr;
-        extern uint32_t max_byte_delay;
-        extern uint32_t max_byte_addr;
-        extern uint32_t bulk_start_copy, bulk_cnt;
-        if(last_latency!=latency){
-            printf("$%x %x %x\n", latency_addr, latency, max_byte_delay);
-            last_latency=latency;
-        }
-        if(last_mbd != max_byte_delay){
-            printf("M%x %x %x\n", max_byte_addr, latency, max_byte_delay);
-            last_mbd=max_byte_delay;
-        }
-        if(last_blk_adr!=bulk_start_copy){
-            printf("B%c %08x %d %d\n", 
-                (bulk_cnt<=0x1000) ? 'R' : 'W',
-                bulk_start_copy, 
-                (bulk_cnt>>16) & 0x7fff,
-                bulk_cnt & 0xffff);
-            last_blk_adr = bulk_start_copy;
-            // }
-        }
-        if((c++ % 400)==0)
-            printf("l%x %x\n", last_addr);
         switch (cmd)
         {
         case 0:

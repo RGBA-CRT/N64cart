@@ -116,12 +116,12 @@ void n64_save_sram(void)
 
     printf("backup SRAM to Flash...");
     
-    flash_set_ea_reg(0);
+//     flash_set_ea_reg(0);
 
-    flash_range_erase(offset, count);
-    flash_range_program(offset, sram_8, count);
+//     flash_range_erase(offset, count);
+//     flash_range_program(offset, sram_8, count);
     
-    flash_set_config(g_flash_info);
+//     flash_set_config(g_flash_info);
 
     printf("done.\n");
     dump(sram_8, 16*8);
@@ -209,7 +209,7 @@ int main(void)
             n64_save_sram();
             g_is_n64_sram_write = false;
         }
-        game_select(0);
+        // game_select(0);
     }
 
     return 0;

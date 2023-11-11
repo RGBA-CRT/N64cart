@@ -87,34 +87,71 @@ uint32_t flash_bank_available;
 uint8_t pi_game_page_origin;
 uint32_t latency, max_byte_delay,max_byte_addr,latency_addr;
 uint32_t bulk_start_copy, bulk_cnt;
+uint32_t debug_value = 0;
 #include "tick.h"
 
 
 static uint32_t n64_bus_bulk_word_offset;
-static inline void n64_bus_bulk_read_init(uint32_t address){
+static inline void n64_bus_bulk_read_init(uint32_t n64_pi_addr){
 	// bulk_start = last_addr;
-	if (address >= 0x10000000 && address <= 0x13FFFFFF) {
-		n64_bus_bulk_word_offset = (address & 0x00FFFFFF)>>1;
-	} else if (address >= 0x08000000 && address <= 0x0FFFFFFF) {
-		n64_bus_bulk_word_offset = (address & (SRAM_SIZE-1))>>1;
+	if (n64_pi_addr >= 0x10000000 && n64_pi_addr <= 0x13FFFFFF) {
+		n64_bus_bulk_word_offset = (n64_pi_addr & 0x00FFFFFF)>>1;
+	} else if (n64_pi_addr >= 0x08000000 && n64_pi_addr <= 0x0FFFFFFF) {
+		n64_bus_bulk_word_offset = (n64_pi_addr & (SRAM_SIZE-1))>>1;
 		// bulk_start = last_addr;
 	}
 	
 }
-static inline uint16_t n64_bus_bulk_read_word(uint32_t n64_address){
+static inline uint16_t n64_bus_bulk_read_word(uint32_t n64_n64_pi_addr){
 	// バッファオーバーラン許して
-	if (n64_address == 0x10000002) {
+	if (n64_n64_pi_addr == 0x10000002) {
 		n64_bus_bulk_word_offset++;
 		return pi_bus_freq;
-	} else if (n64_address >= 0x10000000 && n64_address <= 0x13FFFFFF) {
-		return rom_file_16(n64_address & 0x03FFFFFF);
-	} else if (n64_address >= 0x08000000 && n64_address <= 0x0FFFFFFF) {
+	} else if (n64_n64_pi_addr >= 0x10000000 && n64_n64_pi_addr <= 0x13FFFFFF) {
+		return rom_file_16(n64_bus_bulk_word_offset++ << 1);
+	} else if (n64_n64_pi_addr >= 0x08000000 && n64_n64_pi_addr <= 0x0FFFFFFF) {
 		return sram_16[n64_bus_bulk_word_offset++];
-		// return sram_16[ (address & (SRAM_SIZE-1))>>1 ];
+		// return sram_16[ (n64_pi_addr & (SRAM_SIZE-1))>>1 ];
 	} else {
 		return 0xDEAD;
 	}
 }
+
+
+uint32_t bulk_start;
+static inline void n64_bus_bulk_write_init(uint32_t n64_pi_addr){
+	if (n64_pi_addr >= 0x08000000 && n64_pi_addr <= 0x0FFFFFFF) {
+		n64_bus_bulk_word_offset = (n64_pi_addr & (SRAM_SIZE-1))>>1;
+		bulk_start = n64_bus_bulk_word_offset;
+	}
+}
+
+static inline void n64_bus_bulk_write_exit(uint32_t n64_pi_addr){
+	if (n64_pi_addr >= 0x08000000 && n64_pi_addr <= 0x0FFFFFFF) {
+		bulk_cnt=(n64_bus_bulk_word_offset-bulk_start)<<1 | 0x80000000;
+		bulk_start_copy = n64_pi_addr;
+		g_is_n64_sram_write = true;
+	}
+}
+
+static inline void n64_bus_bulk_write_word(uint32_t n64_pi_addr, uint16_t data){
+	if (n64_pi_addr >= 0x08000000 && n64_pi_addr <= 0x0FFFFFFF) {
+		    sram_16[n64_bus_bulk_word_offset++] = data;
+	}
+	else if (n64_pi_addr == 0x1fd01006) {
+		uart_get_hw(UART_ID)->dr = data & 0xff;
+	} else if (n64_pi_addr == 0x1fd0100a) {
+		gpio_put(LED_PIN, data & 0x01);
+	} else if (n64_pi_addr == 0x1fd0100e) {
+		int page = data;
+		game_select(page);
+	}else{
+		//  printf("WD_%x\n", n64_pi_addr);
+		bulk_cnt= 0xC0000000 | data;
+		bulk_start_copy = n64_pi_addr;
+	}
+}
+
 
 static void inline pi_bank_change(uint8_t page){
 	rom_file_16_piptr = (uint16_t *) (rom_start[page]);
@@ -141,7 +178,6 @@ void n64_pi(void)
     
 //     tick_init();
 //     uint32_t start;
-    uint32_t bulk_start;
 
 // n64_pi_start:
     printf("N64 PI engine start.\n");
@@ -154,15 +190,16 @@ void n64_pi(void)
 last_addr=0x10000000;
     uint32_t word;
     uint32_t addr = pio_sm_get_blocking(pio, 0);
-    do {    	
-	if (addr == 0) {
-	//     bulk_start = last_addr;
-	//     n64_bus_bulk_read_init(last_addr);
-	    pio_sm_clear_fifos(pio, 0);
+    do {
+	debug_value = addr;
+	if (!(addr & 0xFFFFFFF1)) {
+	    n64_bus_bulk_read_init(last_addr);
+	     pio_sm_clear_fifos(pio, 0);
 	    // from PIO: READ REQUEST
+
 		do {
 		    word = n64_bus_bulk_read_word(last_addr);
-		    last_addr+=2;
+		//     last_addr+=2;
 		    
 		    pio_sm_put_blocking(pio, 0, swap8(word));
 		//     printf("r%08X %04x\n", last_addr-2, word);
@@ -184,111 +221,42 @@ last_addr=0x10000000;
 #endif
 		} while (addr == 0);
 		
-		// if((bulk_start>>24) == 0x08){
-		// 	bulk_cnt = (last_addr-bulk_start);
-		// 	bulk_start_copy = bulk_start;
-		// }
-		// if(romdisp_en)
-		// 	printf("R%08X %d %x\n", bulk_start, bulk_cnt,addr);
-			
-		
-	    	// last_addr=bulk_start;
 		continue;
 		
 	    
 	} else if (addr & 0x1) {
-	//     bulk_start = last_addr;
-		// printf("W%x %x\n", last_addr, addr);
 	    // from PIO: WRITE
-#if PI_SRAM
-	    if (last_addr >= 0x08000000 && last_addr <= 0x0FFFFFFF) {
-		// bulk_start = last_addr;
-		// if((last_addr == 0x08000002)){
-		// 	last_addr-=2;
-		// }
-		// printf("W%x\n",bulk_start);
-		// int write_margin = 0;
-		n64_bus_bulk_word_offset = (last_addr & (SRAM_SIZE-1))>>1;
-		bulk_start = n64_bus_bulk_word_offset;
+	    n64_bus_bulk_write_init(last_addr);
+	    
 		do {
-		    sram_16[n64_bus_bulk_word_offset++] = (addr >> 16);
+		    n64_bus_bulk_write_word(last_addr, (addr >> 16));
 		//     sram_16[n64_bus_bulk_word_offset++] = swap8(addr >> 16);
 		//     last_addr += 2;
-		write_check_rx_fifo:
+write_check_rx_fifo:
 		    if(pio_sm_is_rx_fifo_empty(pio, 0)){
 			// write_margin++;
 			goto write_check_rx_fifo;
 		    }
 		    addr = pio_sm_get(pio, 0);
 		} while (addr & 0x01);
-		
-		bulk_cnt=(n64_bus_bulk_word_offset-bulk_start)<<1 | 0x80000000;
-		// bulk_cnt=write_margin<<16 | (last_addr-bulk_start) | 0x80000000;
-		bulk_start_copy = last_addr;
-		g_is_n64_sram_write = true;
+				
+	    n64_bus_bulk_write_exit(last_addr);
 
-		continue;
-	    } else 
-#endif
-	    if (last_addr == 0x1fd01006) {
-		uart_get_hw(UART_ID)->dr = (addr >> 16) & 0xff;
-	    } else if (last_addr == 0x1fd0100a) {
-		gpio_put(LED_PIN, (addr >> 16) & 0x01);
-	    } else if (last_addr == 0x1fd0100e) {
-		int page = (addr >> 16);
-		game_select(page);
-	    }else{
-		//  printf("WD_%x\n", last_addr);
-		bulk_cnt= 0x80000000 | 4444;
-		bulk_start_copy = last_addr;
-	    }
-
-	    last_addr += 2;
+		continue;		
 
 	} else {
 #ifdef FIFO_LOOK_AHEAD
-		//  pio_sm_clear_fifos(pio, 0);
+		// pio_sm_clear_fifos(pio, 0);
 #endif
-		// start = tick_get();
 	    /* from PIO: ADDRESS SET*/
 	    last_addr = addr;
-	//     if  (last_addr >= 0x10000000 && last_addr <= 0x1FBFFFFF) {
-	// 	// non-guard outter rom access (map all pages)
-	// 	// uint8_t page = (pi_game_page_origin + (uint8_t)(last_addr>>24) % rom_pages;
-	// 	// guard outer rom access
-	// 	uint8_t page = (pi_game_page_origin + (uint8_t)((last_addr>>24) % (n64_rom_size>>24)) ) % rom_pages;
-	// 	if(page != pi_last_page) {
-	// 		// if(last_addr >= 0x14000000){
-	// 		// 	printf("ILL%x\n", last_addr);
-	// 		// }
-	// 		// if(n64_rom_offset >= n64_rom_size){
-	// 		// 	// printf("OSA%x\n", last_addr);
-	// 		// 	// n64_rom_offset %= n64_rom_size;
-	// 		// }
-	// 		// TODO: まともなマッピングシステムを考える。
-	// 		// 今は１６MBページごと。page 0は16MBフルに使えないのでファーストバンクには選べない。
-		
-	// 		pi_bank_change(page);
-			
-	// 		// gpio_put(LED_PIN, page ? 1 :0);
-	// 		pi_last_page = page;
-	// 	}
-	// 	// if( (last_addr & 0x0FFFFFFF) > n64_rom_size){
-	// 	// 	printf("%x\n", last_addr);
-	// 	// }
-	//     } else if (last_addr >= 0x08000000 && last_addr <= 0x0FFFFFFF) {
-	// 	// addr = pio_sm_get_blocking(pio, 0);
-	// 	// continue;
-	//     } else {
-	// 	addr = pio_sm_get_blocking(pio, 0);
-	// 	continue;
-	//     }
 	}
 	if(pio_sm_is_rx_fifo_empty(pio, 0)){
-		addr = 0;
+		addr = 2;
 	}else{
 		addr = pio_sm_get(pio, 0);
 	}
+	// addr = pio_sm_get_blocking(pio, 0);
     } while (1);
 
 //     goto n64_pi_start;
