@@ -35,6 +35,12 @@ static void usage(char *app)
     printf("  %s rom <page> <rom file>\n", app);
     printf("  %s picture <jpeg file>\n\n", app);
 }
+#include <time.h>
+uint64_t get_counter_ms(){
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    return (ts.tv_sec * 1000) + (ts.tv_nsec/1000/1000);
+}
 
 static int rom_write(libusb_device_handle *dev_handle, int page, const char* filename, long rom_offset, int rom_type) {
         uint32_t type;
@@ -93,9 +99,12 @@ static int rom_write(libusb_device_handle *dev_handle, int page, const char* fil
 
         int remain_size = size - rom_offset;
         // for(int cur_page = page + (rom_offset/FLASH_PAGE_SIZE_MAX); cur_page!=(write_pages+1); cur_page++){
+            
+        uint64_t total_start = get_counter_ms();
         for(int i= (rom_offset/FLASH_PAGE_SIZE_MAX); i<(write_pages-page+1); i++){
             //  (cur_page == write_pages) ? (size - FLASH_PAGE_SIZE_MAX*(write_pages-page)) : FLASH_PAGE_SIZE_MAX;
             int current_page_write_size = (remain_size<FLASH_PAGE_SIZE_MAX) ? remain_size : FLASH_PAGE_SIZE_MAX;
+            int saved_page_size = current_page_write_size;
             
             printf("write page %d ::: %d bytes\n", i+page, remain_size);
             header->type = DATA_WRITE;
@@ -151,6 +160,7 @@ static int rom_write(libusb_device_handle *dev_handle, int page, const char* fil
                             }
                         }
 
+                        uint64_t write_start = get_counter_ms();
                         ret = bulk_transfer(dev_handle, 0x01, buf, 32, &actual, 5000);
                         if (ret) {
                             fprintf(stderr, "data transfer error - libusb error %d\n", ret);
@@ -160,12 +170,15 @@ static int rom_write(libusb_device_handle *dev_handle, int page, const char* fil
                             fprintf(stderr, "\nData transfer error (%d of 32)\n", actual);
                             break;
                         }
+                        uint64_t write_time = get_counter_ms() - write_start;
 
+                        uint64_t read_start = get_counter_ms();
                         bulk_transfer(dev_handle, 0x82, buf_in, sizeof(buf_in), &actual, 5000);
                         if (actual != 32) {
                             fprintf(stderr, "\nData receive error\n");
                             break;
                         }
+                        uint64_t read_time = get_counter_ms() - read_start;
 
                         if (memcmp(buf, buf_in, 32)) {
                             fprintf(stderr, "\nDevice received wrong data\n");
@@ -175,7 +188,11 @@ static int rom_write(libusb_device_handle *dev_handle, int page, const char* fil
                         current_page_write_size -= 32;
 
                         if ((header->length - current_page_write_size) % 1024 == 0) {
-                            printf("Send %d bytes of %d\r", header->length - current_page_write_size, header->length);
+                            uint64_t total_time = get_counter_ms() - total_start;
+                            
+                            printf("Send %d bytes of %d ::: time:%.1fs (%.1f KB/s), write:%llums, verify:%llums\t\t\r", header->length - current_page_write_size, header->length,
+                                (total_time/1000.0),(saved_page_size-current_page_write_size)/(float)total_time,(write_time),(read_time)
+                                );
                         }
                     } else {
                         fprintf(stderr, "\nError - unaligned ROM file (align 64)\n");

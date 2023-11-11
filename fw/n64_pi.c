@@ -23,9 +23,18 @@
 #include "rom.h"
 
 uint16_t *rom_file_16_piptr;
+uint32_t flash_offset;
+uint32_t n64_rom_size;
+uint32_t inline address_n64_to_flash(uint32_t n64_rom_address){
+	// n64_pi_address:  start ROM from 0x10000000 to 0x13FFFFFF
+	// n64_rom_address: start ROM from 0x00000000 to +rom_size
+	// flash_address:   firmware領域を飛ばす必要がある
+	// TODO: あいまいさを排除, アドレスを定義する
+	return (flash_offset + n64_rom_address) & 0x03FFFFFF;
+}
 
 // #define rom_file_16(adr) rom_file_16_piptr[adr]
-#define rom_file_16(adr) flash_quad_read16_EC((adr<<1))
+#define rom_file_16(adr) flash_quad_read16_EC( address_n64_to_flash(adr) )
 
 // static uint16_t *rom_jpeg_16;
 
@@ -74,7 +83,6 @@ uint16_t get_pi_bus_freq(void)
 uint32_t last_addr = 0;
 uint8_t pi_last_page = 0;
 uint32_t flash_bank_available;
-uint32_t n64_rom_size;
 // uint32_t pi_page_size;
 uint8_t pi_game_page_origin;
 uint32_t latency, max_byte_delay,max_byte_addr,latency_addr;
@@ -93,14 +101,14 @@ static inline void n64_bus_bulk_read_init(uint32_t address){
 	}
 	
 }
-static inline uint16_t n64_bus_bulk_read_word(uint32_t address){
+static inline uint16_t n64_bus_bulk_read_word(uint32_t n64_address){
 	// バッファオーバーラン許して
-	if (address == 0x10000002) {
+	if (n64_address == 0x10000002) {
 		n64_bus_bulk_word_offset++;
 		return pi_bus_freq;
-	} else if (address >= 0x10000000 && address <= 0x13FFFFFF) {
-		return rom_file_16(n64_bus_bulk_word_offset++);
-	} else if (address >= 0x08000000 && address <= 0x0FFFFFFF) {
+	} else if (n64_address >= 0x10000000 && n64_address <= 0x13FFFFFF) {
+		return rom_file_16(n64_address & 0x03FFFFFF);
+	} else if (n64_address >= 0x08000000 && n64_address <= 0x0FFFFFFF) {
 		return sram_16[n64_bus_bulk_word_offset++];
 		// return sram_16[ (address & (SRAM_SIZE-1))>>1 ];
 	} else {
@@ -110,7 +118,10 @@ static inline uint16_t n64_bus_bulk_read_word(uint32_t address){
 
 static void inline pi_bank_change(uint8_t page){
 	rom_file_16_piptr = (uint16_t *) (rom_start[page]);
-	flash_set_ea_reg_light(page);
+	flash_offset = page << 24;
+	// flash_set_ea_reg_light(page);
+	flash_set_ea_reg_light(0);
+	// printf("flash_offset=%x\n", flash_offset);
 }
 
 void n64_pi(void)
@@ -146,12 +157,12 @@ last_addr=0x10000000;
     do {    	
 	if (addr == 0) {
 	//     bulk_start = last_addr;
-	    n64_bus_bulk_read_init(last_addr);
+	//     n64_bus_bulk_read_init(last_addr);
 	    pio_sm_clear_fifos(pio, 0);
 	    // from PIO: READ REQUEST
 		do {
 		    word = n64_bus_bulk_read_word(last_addr);
-		   last_addr+=2;
+		    last_addr+=2;
 		    
 		    pio_sm_put_blocking(pio, 0, swap8(word));
 		//     printf("r%08X %04x\n", last_addr-2, word);
@@ -181,7 +192,7 @@ last_addr=0x10000000;
 		// 	printf("R%08X %d %x\n", bulk_start, bulk_cnt,addr);
 			
 		
-	    	last_addr=bulk_start;
+	    	// last_addr=bulk_start;
 		continue;
 		
 	    
@@ -241,37 +252,37 @@ last_addr=0x10000000;
 		// start = tick_get();
 	    /* from PIO: ADDRESS SET*/
 	    last_addr = addr;
-	    if  (last_addr >= 0x10000000 && last_addr <= 0x1FBFFFFF) {
-		// non-guard outter rom access (map all pages)
-		// uint8_t page = (pi_game_page_origin + (uint8_t)(last_addr>>24) % rom_pages;
-		// guard outer rom access
-		uint8_t page = (pi_game_page_origin + (uint8_t)((last_addr>>24) % (n64_rom_size>>24)) ) % rom_pages;
-		if(page != pi_last_page) {
-			// if(last_addr >= 0x14000000){
-			// 	printf("ILL%x\n", last_addr);
-			// }
-			// if(n64_rom_offset >= n64_rom_size){
-			// 	// printf("OSA%x\n", last_addr);
-			// 	// n64_rom_offset %= n64_rom_size;
-			// }
-			// TODO: まともなマッピングシステムを考える。
-			// 今は１６MBページごと。page 0は16MBフルに使えないのでファーストバンクには選べない。
+	//     if  (last_addr >= 0x10000000 && last_addr <= 0x1FBFFFFF) {
+	// 	// non-guard outter rom access (map all pages)
+	// 	// uint8_t page = (pi_game_page_origin + (uint8_t)(last_addr>>24) % rom_pages;
+	// 	// guard outer rom access
+	// 	uint8_t page = (pi_game_page_origin + (uint8_t)((last_addr>>24) % (n64_rom_size>>24)) ) % rom_pages;
+	// 	if(page != pi_last_page) {
+	// 		// if(last_addr >= 0x14000000){
+	// 		// 	printf("ILL%x\n", last_addr);
+	// 		// }
+	// 		// if(n64_rom_offset >= n64_rom_size){
+	// 		// 	// printf("OSA%x\n", last_addr);
+	// 		// 	// n64_rom_offset %= n64_rom_size;
+	// 		// }
+	// 		// TODO: まともなマッピングシステムを考える。
+	// 		// 今は１６MBページごと。page 0は16MBフルに使えないのでファーストバンクには選べない。
 		
-			pi_bank_change(page);
+	// 		pi_bank_change(page);
 			
-			// gpio_put(LED_PIN, page ? 1 :0);
-			pi_last_page = page;
-		}
-		// if( (last_addr & 0x0FFFFFFF) > n64_rom_size){
-		// 	printf("%x\n", last_addr);
-		// }
-	    } else if (last_addr >= 0x08000000 && last_addr <= 0x0FFFFFFF) {
-		// addr = pio_sm_get_blocking(pio, 0);
-		// continue;
-	    } else {
-		addr = pio_sm_get_blocking(pio, 0);
-		continue;
-	    }
+	// 		// gpio_put(LED_PIN, page ? 1 :0);
+	// 		pi_last_page = page;
+	// 	}
+	// 	// if( (last_addr & 0x0FFFFFFF) > n64_rom_size){
+	// 	// 	printf("%x\n", last_addr);
+	// 	// }
+	//     } else if (last_addr >= 0x08000000 && last_addr <= 0x0FFFFFFF) {
+	// 	// addr = pio_sm_get_blocking(pio, 0);
+	// 	// continue;
+	//     } else {
+	// 	addr = pio_sm_get_blocking(pio, 0);
+	// 	continue;
+	//     }
 	}
 	if(pio_sm_is_rx_fifo_empty(pio, 0)){
 		addr = 0;
@@ -285,15 +296,12 @@ last_addr=0x10000000;
 
 
 uint32_t inline rom_file_32(uint32_t addr){
-	return rom_file_16(addr/2) | rom_file_16(addr/2+1)<<16;
+	return rom_file_16(addr) | rom_file_16(addr+2)<<16;
 }
 
 uint8_t inline rom_file_8(uint32_t addr){
-	if(addr%2) {
-		return rom_file_16(addr/2) >> 8;
-	}else{
-		return rom_file_16(addr/2) & 0xFF;
-	}
+	// ROMには16bit LEで保存されているので、8bit単位(BEっぽく)アクセスするためにxorでbyte swapする
+	return rom_file_16(addr ^ 1) >> 8;
 }
 
 
@@ -326,26 +334,32 @@ void dump_n64(uint32_t address, size_t size){
         printf("\n");
     }
 }
-void memcpy_n64(void* dst, uint32_t src, uint32_t size){
-	for(uint32_t i=0;i<size/2; i++){
-		((uint16_t*)dst)[i] = rom_file_16((src>>1)+i);
-	}
-}
-
-void dump2(uint8_t* address, size_t size){
-
+void dump_n64_16(uint32_t address, size_t size){
     for(int of=0; of<size;of+=16){
         printf("%08x ",address+of);
-        for(int i=0;i<16;i++){
-            printf("%02x ",address[of+i]);
-        }
-        for(int i=0;i<16;i++){
-            uint8_t b=address[of+i];
-            printf("%c",(b<0x20) ? '.' : ((b>=0x80) ? '.' : b));
+        for(int i=0;i<16;i+=2){
+            printf("%04x ",rom_file_16(address+of+i));
         }
         printf("\n");
     }
 }
+void dump_n64_32(uint32_t address, size_t size){
+    for(int of=0; of<size;of+=16){
+        printf("%08x ",address+of);
+        for(int i=0;i<16;i+=4){
+            printf("%08x ",rom_file_32(address+of+i));
+        }
+        printf("\n");
+    }
+}
+void memcpy_n64(void* dst, uint32_t src, uint32_t size){
+	for(uint32_t i=0;i<size/2; i++){
+		((uint16_t*)dst)[i] = rom_file_16(src+(i*2));
+	}
+}
+
+// #define TRACE(...) printf(__VA_ARGS__)
+#define TRACE(...) 
 void game_select(int id){
 	id = id % rom_pages;
 	slove_mapped_rom(id);
@@ -354,11 +368,11 @@ void game_select(int id){
 	// pi_page_size = rom_size[id];
 	pi_game_page_origin = id;
 
-	char title[21]={"DUMMY"};
-	memcpy_n64(title, 0x00000020, sizeof(title));
+	char title[22]={"DUMMY"};
+	memcpy_n64(title, 0x00000020, 20);
 	title[20] = '\0';
 
-	if(strcmp(title, "PicoCart64 Test ROM") == 0){
+	if(strcmp("PicoCart64 Test ROM", title) == 0){
 		printf("special debug flat mapping\n");
 		n64_rom_size = 16*1024*1024*4;
 	}
@@ -367,26 +381,10 @@ void game_select(int id){
 	select_cic(type);
 
 	printf("Select bank:%d, CIC type: %s, title: %s, %dMB\n", id, cic_get_name(type), title, n64_rom_size/1024/1024);
-	dump_n64(id << 24, 16*8);
 
-	// uint8_t buf[16];
-	// printf("memcpy 0x00A5EFCC\n");
-	// memcpy_n64(buf, 0x00A5EFCC, 16);
-	// printf("=========END memcpy 0x00A5EFCC\n");
-	// dump2(buf, 16);
-	
-	// printf("memcpy 0x01223344\n");
-	// memcpy_n64(buf, 0x01223344, 16);
-	// printf("=========END memcpy 0x01223344\n");
-	// dump2(buf, 16);
+	// debug rom access
+	dump_n64(0, 16*4);
+	// dump_n64_16(0, 16*4);
+	// dump_n64_32(0, 16*4);
 
-	// printf("memcpy 0x00000000\n");
-	// memcpy_n64(buf, 0x00000000, 16);
-	// printf("=========END memcpy 0x00000000\n");
-	// dump2(buf, 16);
-
-	// printf("memcpy 0x00000020\n");
-	// memcpy_n64(buf, 0x00000020, 16);
-	// printf("=========END memcpy 0x00000020\n");
-	// dump2(buf, 16);
 }

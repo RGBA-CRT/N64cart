@@ -537,7 +537,10 @@ void check_sel_button(){
     static int game_id = 0;
     if(gpio_get(ROM_SEL_BUTTON)){ button_cycle++; } else {button_cycle=0;}
     if(button_cycle == 5000){
+        
+	// printf("L%d\n",__LINE__);
         game_select(game_id++);
+	// printf("L%d\n",__LINE__);
     }
 }
 
@@ -561,6 +564,7 @@ void cic_run(void)
         check_sel_button();
         tight_loop_contents();
     }
+    // while(1){check_sel_button();}
 
     // read the region setting
     isPal = GET_REGION();
@@ -688,6 +692,7 @@ enum CicType cic_easy_detect(uint32_t keydata){
         default:
             break;
     }
+    // printf("%s: key=%08x, ret=%d\n", __func__,keydata,ret);
     return ret;
 }
 

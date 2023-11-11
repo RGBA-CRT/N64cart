@@ -22,7 +22,7 @@ static bool boot2_copyout_valid = false;
 static const struct FlashChip flash_chip_table[] = {
 //    { 0xef, 0x4020, 4, 16, 300000, 0x7012, 3, 2, "W25Q512" }, // Flashオーバークロック
 //    { 0xef, 0x4020, 4, 16, 291000, 0x7010, 2, 2, "W25Q512" }, // Flashオーバークロック
-   { 0xef, 0x4020, 4, 16, 291000, 0x7010, 7, 2, "W25Q512" }, // Flashオーバークロック
+   { 0xef, 0x4020, 4, 16, 291000, 0x7060, 7, 2, "W25Q512" }, // Flashオーバークロック
 //    { 0xef, 0x4020, 4, 16, (96000*3), 0x8060, 3, 2, "W25Q512" }, // ギリギリ動く
 //    { 0xef, 0x4020, 4, 16, (9/0000*3), 0x5540, 3, 2, "W25Q512" }, // ギリギリ動く
 //    { 0xef, 0x4020, 4, 16, (133000*3), 0x6c20, 4, 2, "W25Q512" }, // Firmの起動まではいく
@@ -40,7 +40,6 @@ const struct FlashChip* flash_get_info() {
     uint8_t rxbuf[4];
     //    printf("Detect ROM chip\n");
     txbuf[0] = 0x9f;
-
     flash_do_cmd(txbuf, rxbuf, 4);
 
 //    printf("Flash jedec id %02X %02X %02X\n", rxbuf[1], rxbuf[2], rxbuf[3]);
@@ -433,10 +432,8 @@ uint16_t __no_inline_not_in_flash_func(flash_quad_read16_EC)(uint32_t addr)
     // uint32_t val2 = ssi_hw->dr0;
 
     // flash_cs_force(1);
+    // if((addr&0xFFFFF) == 0x0000)
+    //     printf("A_%08x: %08x\n", addr, val);
 
-    uint16_t val16 = val >> 16;
-    // if((addr&0xFFF0F) == 0x0000)
-    //     printf("A_%8x: %08x %08x\n", addr, val,val2);
-
-    return val16;
+    return val >> 16;
 }
