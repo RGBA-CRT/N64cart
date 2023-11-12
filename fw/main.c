@@ -88,19 +88,33 @@ void n64_pi_restart(void)
     multicore_launch_core1(n64_pi);
 }
 
-void dump(uint8_t* address, size_t size){
-
+typedef uint8_t(* ACCESSOR_FUNC_T)(uint8_t*);
+void _dump(uint8_t * address, size_t size, ACCESSOR_FUNC_T accessor){
     for(int of=0; of<size;of+=16){
         printf("%08x ",address+of);
         for(int i=0;i<16;i++){
-            printf("%02x ",address[of+i]);
+            printf("%02x ", accessor(address+of+i));
         }
         for(int i=0;i<16;i++){
-            uint8_t b=address[of+i];
+            uint8_t b=accessor(address+of+i);
             printf("%c",(b<0x20) ? '.' : ((b>=0x80) ? '.' : b));
         }
         printf("\n");
     }
+}
+
+uint8_t raspi_memory_accessor_8(uint8_t * address){
+	return *address;
+}
+void dump(uint8_t* address, size_t size){
+	_dump(address, size, raspi_memory_accessor_8);
+}
+
+uint8_t raspi_memory_accessor_8_byteswapped(uint8_t * address){
+	return *(uint8_t*)((uint32_t)address ^ 1);
+}
+void dump_byteswapped(uint8_t* address, size_t size){
+	_dump(address, size, raspi_memory_accessor_8_byteswapped);
 }
 #if PI_SRAM
 // const uint8_t __aligned(4096) __in_flash("n64_sram") n64_sram[SRAM_SIZE];

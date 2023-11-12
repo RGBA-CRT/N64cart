@@ -25,7 +25,7 @@
 uint16_t *rom_file_16_piptr;
 uint32_t flash_offset;
 uint32_t n64_rom_size;
-uint32_t inline address_n64_to_flash(uint32_t n64_rom_address){
+uint32_t inline address_n64_rom_to_flash(uint32_t n64_rom_address){
 	// n64_pi_address:  start ROM from 0x10000000 to 0x13FFFFFF
 	// n64_rom_address: start ROM from 0x00000000 to +rom_size
 	// flash_address:   firmware領域を飛ばす必要がある
@@ -34,7 +34,7 @@ uint32_t inline address_n64_to_flash(uint32_t n64_rom_address){
 }
 
 // #define rom_file_16(adr) rom_file_16_piptr[adr]
-#define rom_file_16(adr) flash_quad_read16_EC( address_n64_to_flash(adr) )
+#define rom_file_16(adr) flash_quad_read16_EC( address_n64_rom_to_flash(adr) )
 
 // static uint16_t *rom_jpeg_16;
 
@@ -90,6 +90,7 @@ uint32_t bulk_start_copy, bulk_cnt;
 uint32_t debug_value = 0;
 #include "tick.h"
 
+uint32_t bulk_start;
 
 static uint32_t n64_bus_bulk_word_offset;
 static inline void n64_bus_bulk_read_init(uint32_t n64_pi_addr){
@@ -98,7 +99,7 @@ static inline void n64_bus_bulk_read_init(uint32_t n64_pi_addr){
 		n64_bus_bulk_word_offset = (n64_pi_addr & 0x03FFFFFF)>>1;
 	} else if (n64_pi_addr >= 0x08000000 && n64_pi_addr <= 0x0FFFFFFF) {
 		n64_bus_bulk_word_offset = (n64_pi_addr & (SRAM_SIZE-1))>>1;
-		// bulk_start = last_addr;
+		bulk_start = n64_bus_bulk_word_offset;
 	}
 	
 }
@@ -114,15 +115,22 @@ static inline uint16_t n64_bus_bulk_read_word(uint32_t n64_n64_pi_addr){
 		n64_bus_bulk_word_offset++;
 		return ret;
 	} else if (n64_n64_pi_addr >= 0x08000000 && n64_n64_pi_addr <= 0x0FFFFFFF) {
-		return 0xFECA;
-		// return sram_16[n64_bus_bulk_word_offset++];
+		// return 0xFECA;
+		// return 0xCA00 + (n64_bus_bulk_word_offset++ << 1);
+		return sram_16[n64_bus_bulk_word_offset++ ^ 1];
 	} else {
 		return 0xADDE; // 0xDEAD
 	}
 }
 
+static inline void n64_bus_bulk_read_exit(uint32_t n64_pi_addr){
+	if (n64_pi_addr >= 0x08000000 && n64_pi_addr <= 0x0FFFFFFF) {
+		bulk_cnt=(n64_bus_bulk_word_offset-bulk_start)<<1;
+		bulk_start_copy = n64_pi_addr;
+	}
+}
 
-uint32_t bulk_start;
+
 static inline void n64_bus_bulk_write_init(uint32_t n64_pi_addr){
 	if (n64_pi_addr >= 0x08000000 && n64_pi_addr <= 0x0FFFFFFF) {
 		n64_bus_bulk_word_offset = (n64_pi_addr & (SRAM_SIZE-1))>>1;
@@ -159,7 +167,7 @@ static inline void n64_bus_bulk_write_word(uint32_t n64_pi_addr, uint16_t data){
 
 static void inline pi_bank_change(uint8_t page){
 	rom_file_16_piptr = (uint16_t *) (rom_start[page]);
-	flash_offset = page << 24;
+	flash_offset = (page << 24) + ((uint32_t)rom_file_16_piptr-ROM_BASE_RP2040);
 	// flash_set_ea_reg_light(page);
 	flash_set_ea_reg_light(0);
 	// printf("flash_offset=%x\n", flash_offset);
@@ -230,6 +238,7 @@ last_addr=0x10000000;
 #ifdef FIFO_LOOK_AHEAD
 	     pio_sm_clear_fifos(pio, 0);
 #endif
+	    n64_bus_bulk_read_exit(last_addr);
 		
 		continue;
 		
@@ -239,7 +248,7 @@ last_addr=0x10000000;
 	    n64_bus_bulk_write_init(last_addr);
 	    
 		do {
-		    n64_bus_bulk_write_word(last_addr, (addr >> 16));
+		    n64_bus_bulk_write_word(last_addr, swap8(addr >> 16));
 		//     sram_16[n64_bus_bulk_word_offset++] = swap8(addr >> 16);
 		//     last_addr += 2;
 write_check_rx_fifo:
