@@ -236,7 +236,11 @@ last_addr=0x10000000;
 #endif
 		} while (addr == 0);
 #ifdef FIFO_LOOK_AHEAD
-	     pio_sm_clear_fifos(pio, 0);
+		// if()
+	//      pio_sm_clear_fifos(pio, 0);
+	 	// if(!pio_sm_is_rx_fifo_empty(pio, 0)){
+		// 	printf("!!AVAIL PIPE: %08X\n", pio_sm_get(pio, 0));
+		// }
 #endif
 	    n64_bus_bulk_read_exit(last_addr);
 		
