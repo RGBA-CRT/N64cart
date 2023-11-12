@@ -10,17 +10,11 @@
 
 pi_start:
     ; Clear ISR (needed when jumping here manually from C-code quickly)  ; from dreamdrive64
-    mov isr, null
+    ;mov isr, null
 
     ; Change IO dir of all pins to INPUT
     mov osr, null
     out pindirs, 32
-
-    ; clear fifo
-    pull noblock
-    pull noblock
-    pull noblock
-    ;pull noblock
 
     ; state => STATE_START
 
@@ -49,6 +43,10 @@ pi_start:
     ; TODO: Can we use autopush?
     push
 
+wait_sync:
+    pull
+    mov x, osr
+    jmp x-- wait_sync
 
 .wrap_target
 wait_for_not_read_or_aleh:

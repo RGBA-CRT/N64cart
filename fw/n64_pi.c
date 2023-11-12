@@ -95,7 +95,7 @@ static uint32_t n64_bus_bulk_word_offset;
 static inline void n64_bus_bulk_read_init(uint32_t n64_pi_addr){
 	// bulk_start = last_addr;
 	if (n64_pi_addr >= 0x10000000 && n64_pi_addr <= 0x13FFFFFF) {
-		n64_bus_bulk_word_offset = (n64_pi_addr & 0x00FFFFFF)>>1;
+		n64_bus_bulk_word_offset = (n64_pi_addr & 0x03FFFFFF)>>1;
 	} else if (n64_pi_addr >= 0x08000000 && n64_pi_addr <= 0x0FFFFFFF) {
 		n64_bus_bulk_word_offset = (n64_pi_addr & (SRAM_SIZE-1))>>1;
 		// bulk_start = last_addr;
@@ -114,10 +114,10 @@ static inline uint16_t n64_bus_bulk_read_word(uint32_t n64_n64_pi_addr){
 		n64_bus_bulk_word_offset++;
 		return ret;
 	} else if (n64_n64_pi_addr >= 0x08000000 && n64_n64_pi_addr <= 0x0FFFFFFF) {
-		return sram_16[n64_bus_bulk_word_offset++];
-		// return sram_16[ (n64_pi_addr & (SRAM_SIZE-1))>>1 ];
+		return 0xFECA;
+		// return sram_16[n64_bus_bulk_word_offset++];
 	} else {
-		return 0xDEAD;
+		return 0xADDE; // 0xDEAD
 	}
 }
 
@@ -198,14 +198,17 @@ last_addr=0x10000000;
 	debug_value = addr;
 	if (!(addr & 0xFFFFFFF1)) {
 	    n64_bus_bulk_read_init(last_addr);
-	     pio_sm_clear_fifos(pio, 0);
+#ifdef FIFO_LOOK_AHEAD
+	     //pio_sm_clear_fifos(pio, 0);
+#endif
 	    // from PIO: READ REQUEST
+	//     pio_sm_put_blocking(pio, 0, 0x00000000); // send "SYNC"
 
 		do {
 		    word = n64_bus_bulk_read_word(last_addr);
 		//     last_addr+=2;
 		    
-		    pio_sm_put_blocking(pio, 0, swap8(word));
+		    pio_sm_put_blocking(pio, 0, 0xFFFF0000 | swap8(word));
 		//      printf("r%08X %04x\n", last_addr, word);
 #ifdef FIFO_LOOK_AHEAD
 		check_rx_fifo:
@@ -224,6 +227,9 @@ last_addr=0x10000000;
 		    addr = pio_sm_get_blocking(pio, 0);
 #endif
 		} while (addr == 0);
+#ifdef FIFO_LOOK_AHEAD
+	     pio_sm_clear_fifos(pio, 0);
+#endif
 		
 		continue;
 		
@@ -249,18 +255,23 @@ write_check_rx_fifo:
 		continue;		
 
 	} else {
-#ifdef FIFO_LOOK_AHEAD
-		// pio_sm_clear_fifos(pio, 0);
-#endif
+// #ifdef FIFO_LOOK_AHEAD
+// 		pio_sm_clear_fifos(pio, 0);
+// #endif
 	    /* from PIO: ADDRESS SET*/
 	    last_addr = addr;
+	     pio_sm_put_blocking(pio, 0, 0x00000000); // send "SYNC"
 	}
-	if(pio_sm_is_rx_fifo_empty(pio, 0)){
-		addr = 2;
-	}else{
-		addr = pio_sm_get(pio, 0);
-	}
-	// addr = pio_sm_get_blocking(pio, 0);
+	// if(pio_sm_is_rx_fifo_empty(pio, 0)){
+	// 	addr = 2;
+	// }else{
+	// 	addr = pio_sm_get(pio, 0);
+	// }
+	// ↑このlook aheadは使えない。期待しないデータがFIFO煮詰まれてしまう。
+	// ここはブロッキング前提にして、読み出し/書き込みの準備をしてしまおう
+	// できるのはinit系、分岐かな。
+	// read_word/write_wordを関数ポインタにしてアドレスデコードを削除, word indexをなんとかするなど
+	addr = pio_sm_get_blocking(pio, 0);
     } while (1);
 
 //     goto n64_pi_start;
