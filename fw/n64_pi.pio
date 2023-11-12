@@ -110,7 +110,7 @@ handle_write:
     mov x, ~null
     in x, 16
 
-    push 
+    push noblock
 
     ; wait for N64_WRITE ; ref: dreamdrive64
     wait 1 gpio 18

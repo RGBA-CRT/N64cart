@@ -92,55 +92,83 @@ uint32_t debug_value = 0;
 
 uint32_t bulk_start;
 
-static uint32_t n64_bus_bulk_word_offset;
-static inline void n64_bus_bulk_read_init(uint32_t n64_pi_addr){
-	// bulk_start = last_addr;
-	if (n64_pi_addr >= 0x10000000 && n64_pi_addr <= 0x13FFFFFF) {
-		n64_bus_bulk_word_offset = (n64_pi_addr & 0x03FFFFFF)>>1;
-	} else if (n64_pi_addr >= 0x08000000 && n64_pi_addr <= 0x0FFFFFFF) {
-		n64_bus_bulk_word_offset = (n64_pi_addr & (SRAM_SIZE-1))>>1;
-		bulk_start = n64_bus_bulk_word_offset;
-	}
-	
-}
-static inline uint16_t n64_bus_bulk_read_word(uint32_t n64_n64_pi_addr){
-	// バッファオーバーラン許して
-	if (n64_n64_pi_addr >= 0x10000000 && n64_n64_pi_addr <= 0x13FFFFFF) {
-		uint16_t ret;
-		if(n64_bus_bulk_word_offset != 1){
-			ret = rom_file_16(n64_bus_bulk_word_offset << 1);
-		} else {
-			ret = pi_bus_freq;
-		}
-		n64_bus_bulk_word_offset++;
-		return ret;
-	} else if (n64_n64_pi_addr >= 0x08000000 && n64_n64_pi_addr <= 0x0FFFFFFF) {
-		// return 0xFECA;
-		// return 0xCA00 + (n64_bus_bulk_word_offset++ << 1);
-		return sram_16[n64_bus_bulk_word_offset++ ^ 1];
+static uint32_t n64_pi_bulk_offset;
+
+typedef uint16_t(* N64_PI_READ_FUNC)();
+typedef void(* N64_PI_WRITE_FUNC)(uint16_t);
+
+N64_PI_READ_FUNC n64_pi_read_routine = NULL;
+N64_PI_WRITE_FUNC n64_pi_write_routine = NULL;
+
+uint16_t n64_pi_read_rom(){
+	uint16_t ret;
+	if(n64_pi_bulk_offset != 1){
+		ret = rom_file_16(n64_pi_bulk_offset << 1);
 	} else {
-		return 0xADDE; // 0xDEAD
+		ret = pi_bus_freq;
+	}
+	return swap8(ret);
+}
+
+// SRAM area
+uint16_t n64_pi_read_sram(){
+	return sram_16[n64_pi_bulk_offset ^ 1];
+	// return sram_16[n64_pi_bulk_offset]>>16;
+	// return 0xFA00 + n64_pi_bulk_offset;
+}
+void n64_pi_write_sram(uint16_t data){
+	// if(g_is_n64_sram_write){
+	// 	printf("w%04x\n",data);
+	// }
+	// sram_16[n64_pi_bulk_offset] = data;
+	sram_16[n64_pi_bulk_offset ^ 1] = data;
+}
+
+// invalid area
+uint16_t n64_pi_read_invalid_area(){
+	return 0xDEAD;
+}
+void n64_pi_write_invalid_area(uint16_t data){
+	bulk_cnt= 0xC0000000 | data;
+	bulk_start_copy = n64_pi_bulk_offset;
+}
+
+// LAT期間にできる処理
+static inline void n64_pi_address_decode(uint32_t n64_pi_addr){
+	if (n64_pi_addr >= 0x10000000 && n64_pi_addr <= 0x13FFFFFF) {
+		/* ROM */
+		n64_pi_bulk_offset = (n64_pi_addr & 0x03FFFFFF)>>1;
+		n64_pi_read_routine = n64_pi_read_rom;
+		n64_pi_write_routine = n64_pi_write_invalid_area;
+
+	} else if (n64_pi_addr >= 0x08000000 && n64_pi_addr <= 0x0FFFFFFF) {
+		/* SRAM */
+		n64_pi_bulk_offset = (n64_pi_addr & (SRAM_SIZE-1))>>1;
+		n64_pi_read_routine = n64_pi_read_sram;
+		n64_pi_write_routine = n64_pi_write_sram;
+		bulk_start = n64_pi_bulk_offset;
+		// if(g_is_n64_sram_write){
+		// 	printf("a%x\n",n64_pi_addr);
+		// }
+
+	} else {
+		/* INVALID SPACE */
+		n64_pi_bulk_offset = n64_pi_addr;
+		n64_pi_read_routine = n64_pi_read_invalid_area;
+		n64_pi_write_routine = n64_pi_write_invalid_area;
 	}
 }
 
 static inline void n64_bus_bulk_read_exit(uint32_t n64_pi_addr){
 	if (n64_pi_addr >= 0x08000000 && n64_pi_addr <= 0x0FFFFFFF) {
-		bulk_cnt=(n64_bus_bulk_word_offset-bulk_start)<<1;
+		bulk_cnt=(n64_pi_bulk_offset-bulk_start)<<1;
 		bulk_start_copy = n64_pi_addr;
-	}
-}
-
-
-static inline void n64_bus_bulk_write_init(uint32_t n64_pi_addr){
-	if (n64_pi_addr >= 0x08000000 && n64_pi_addr <= 0x0FFFFFFF) {
-		n64_bus_bulk_word_offset = (n64_pi_addr & (SRAM_SIZE-1))>>1;
-		bulk_start = n64_bus_bulk_word_offset;
 	}
 }
 
 static inline void n64_bus_bulk_write_exit(uint32_t n64_pi_addr){
 	if (n64_pi_addr >= 0x08000000 && n64_pi_addr <= 0x0FFFFFFF) {
-		bulk_cnt=(n64_bus_bulk_word_offset-bulk_start)<<1 | 0x80000000;
+		bulk_cnt=(n64_pi_bulk_offset-bulk_start)<<1 | 0x80000000;
 		bulk_start_copy = n64_pi_addr;
 		g_is_n64_sram_write = true;
 	}
@@ -148,7 +176,7 @@ static inline void n64_bus_bulk_write_exit(uint32_t n64_pi_addr){
 
 static inline void n64_bus_bulk_write_word(uint32_t n64_pi_addr, uint16_t data){
 	if (n64_pi_addr >= 0x08000000 && n64_pi_addr <= 0x0FFFFFFF) {
-		    sram_16[n64_bus_bulk_word_offset++] = data;
+		    sram_16[n64_pi_bulk_offset++] = data;
 	}
 	else if (n64_pi_addr == 0x1fd01006) {
 		uart_get_hw(UART_ID)->dr = data & 0xff;
@@ -175,11 +203,7 @@ static void inline pi_bank_change(uint8_t page){
 
 void n64_pi(void)
 {
-//     rom_file_16 = (uint16_t *) ((uint32_t) rom_file | ROM_BASE_RP2040);
-	// rom_file_16 = (uint16_t *) (ROM_BASE_RP2040 + rom_start[0]);
-//     rom_jpeg_16 = (uint16_t *) (ROM_BASE_RP2040 + flash_sram_start);
-	// n64_rom_size = 16*1024*1024
-
+    // setup PIO
     PIO pio = pio0;
     pio_clear_instruction_memory(pio);
     uint offset = pio_add_program(pio, &pi_program);
@@ -187,36 +211,26 @@ void n64_pi(void)
     pio_sm_set_enabled(pio, 0, true);
 
     gpio_put(LED_PIN, 0);
-    
-//     tick_init();
-//     uint32_t start;
 
-// n64_pi_start:
     printf("N64 PI engine start.\n");
+
     // Wait for reset to be released
     while (gpio_get(N64_COLD_RESET) == 0) {
 	tight_loop_contents();
     }
-//     bool romdisp_en = false;
 
-last_addr=0x10000000;
     uint32_t word;
     uint32_t addr = pio_sm_get_blocking(pio, 0);
+    last_addr=0x10000000;
+    n64_pi_address_decode(last_addr);
+    word = n64_pi_read_routine();  
     do {
 	debug_value = addr;
 	if (!(addr & 0xFFFFFFF1)) {
-	    n64_bus_bulk_read_init(last_addr);
-#ifdef FIFO_LOOK_AHEAD
-	     //pio_sm_clear_fifos(pio, 0);
-#endif
+		n64_pi_bulk_offset++;
 	    // from PIO: READ REQUEST
-	//     pio_sm_put_blocking(pio, 0, 0x00000000); // send "SYNC"
-
-		do {
-		    word = n64_bus_bulk_read_word(last_addr);
-		//     last_addr+=2;
-		    
-		    pio_sm_put_blocking(pio, 0, 0xFFFF0000 | swap8(word));
+		do {		
+		    pio_sm_put_blocking(pio, 0, 0xFFFF0000 | (word));
 		//      printf("r%08X %04x\n", last_addr, word);
 #ifdef FIFO_LOOK_AHEAD
 		check_rx_fifo:
@@ -227,6 +241,8 @@ last_addr=0x10000000;
 				goto check_rx_fifo;
 			}else{
 				// TXIFOが空いているので突っ込んでしまえ
+				word = n64_pi_read_routine();  
+				n64_pi_bulk_offset++;
 				continue;
 			}
 		    }
@@ -234,30 +250,20 @@ last_addr=0x10000000;
 #else
 		    addr = pio_sm_get_blocking(pio, 0);
 #endif
+		    word = n64_pi_read_routine();  
+		    n64_pi_bulk_offset++;
 		} while (addr == 0);
-#ifdef FIFO_LOOK_AHEAD
-		// if()
-	//      pio_sm_clear_fifos(pio, 0);
-	 	// if(!pio_sm_is_rx_fifo_empty(pio, 0)){
-		// 	printf("!!AVAIL PIPE: %08X\n", pio_sm_get(pio, 0));
-		// }
-#endif
-	    n64_bus_bulk_read_exit(last_addr);
+	        n64_bus_bulk_read_exit(last_addr);
 		
-		continue;
-		
+		continue;		
 	    
 	} else if (addr & 0x1) {
-	    // from PIO: WRITE
-	    n64_bus_bulk_write_init(last_addr);
-	    
+	    // from PIO: WRITE	    
 		do {
-		    n64_bus_bulk_write_word(last_addr, swap8(addr >> 16));
-		//     sram_16[n64_bus_bulk_word_offset++] = swap8(addr >> 16);
-		//     last_addr += 2;
+		    n64_pi_write_routine((addr >> 16));
+		    n64_pi_bulk_offset++;
 write_check_rx_fifo:
 		    if(pio_sm_is_rx_fifo_empty(pio, 0)){
-			// write_margin++;
 			goto write_check_rx_fifo;
 		    }
 		    addr = pio_sm_get(pio, 0);
@@ -268,22 +274,14 @@ write_check_rx_fifo:
 		continue;		
 
 	} else {
-// #ifdef FIFO_LOOK_AHEAD
-// 		pio_sm_clear_fifos(pio, 0);
-// #endif
 	    /* from PIO: ADDRESS SET*/
-	    last_addr = addr;
-	     pio_sm_put_blocking(pio, 0, 0x00000000); // send "SYNC"
+	    pio_sm_put(pio, 0, 0x00000000); // send "SYNC"
+	    last_addr = addr; // TODO: 消す。完全に下の関数で管理するようにする
+	    n64_pi_address_decode(addr);
+	    // read ahead2
+	    word = n64_pi_read_routine();  
 	}
-	// if(pio_sm_is_rx_fifo_empty(pio, 0)){
-	// 	addr = 2;
-	// }else{
-	// 	addr = pio_sm_get(pio, 0);
-	// }
-	// ↑このlook aheadは使えない。期待しないデータがFIFO煮詰まれてしまう。
-	// ここはブロッキング前提にして、読み出し/書き込みの準備をしてしまおう
-	// できるのはinit系、分岐かな。
-	// read_word/write_wordを関数ポインタにしてアドレスデコードを削除, word indexをなんとかするなど
+
 	addr = pio_sm_get_blocking(pio, 0);
     } while (1);
 
