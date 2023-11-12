@@ -43,6 +43,7 @@ pi_start:
     ; TODO: Can we use autopush?
     push
 
+    ; clear look ahead words in lat dur.
 wait_sync:
     pull
     mov x, osr

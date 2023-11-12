@@ -138,7 +138,7 @@ void n64_save_sram(void)
 //     flash_set_config(g_flash_info);
 
     printf("done.\n");
-    dump_byteswapped(sram_8, 16*8);
+    dump_byteswapped(sram_8, 16*(32+8));
 }
 #endif
 
