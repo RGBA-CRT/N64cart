@@ -141,28 +141,28 @@ void n64_pi_write_invalid_area(uint16_t data){
 static inline void n64_pi_address_decode(uint32_t n64_pi_addr){
 	// オカリナのSRAMアクセスが早すぎるので分岐を最優先で行う
 	if (n64_pi_addr >= 0x08000000 && n64_pi_addr <= 0x0FFFFFFF) {
+		// クロック数レベルでギリギリなので処理順を変えないこと
 		/* SRAM */
 		n64_pi_bulk_offset = (n64_pi_addr & (SRAM_SIZE-1))>>1;
 #ifdef SRAM_LOOK_AHEAD
 		pio_sm_put(pio, 0, 0xFFF00000 | (sram_16[n64_pi_bulk_offset]));
 		pio_sm_put(pio, 0, 0xFFF10000 | (sram_16[n64_pi_bulk_offset+1]));
-		// pio_sm_put(pio, 0, /*0xFFFF0000 |*/ (word));
-		// pio_sm_put(pio, 0, /*0xFFFF0000 |*/ 0xCAFE);
 		n64_pi_bulk_offset+=2;
 #endif
 		n64_pi_read_routine = n64_pi_read_sram;
 		n64_pi_write_routine = n64_pi_write_sram;
 		bulk_start = n64_pi_bulk_offset;
 		n64_pi_bulk_write_offset = (n64_pi_addr & (SRAM_SIZE-1))>>1;
-		// if(g_is_n64_sram_write){
-		// 	printf("a%x\n",n64_pi_addr);
-		// }
-		// SRAM PRELOAD
-		
 
 	} else if (n64_pi_addr >= 0x10000000 && n64_pi_addr <= 0x13FFFFFF) {
 		/* ROM */
 		n64_pi_bulk_offset = (n64_pi_addr & 0x03FFFFFF)>>1;
+#ifdef SRAM_LOOK_AHEAD
+		pio_sm_put(pio, 0, 0xFFE00000 | n64_pi_read_rom());
+		n64_pi_bulk_offset++;
+		pio_sm_put(pio, 0, 0xFFE10000 | n64_pi_read_rom());
+		n64_pi_bulk_offset++;
+#endif
 		n64_pi_read_routine = n64_pi_read_rom;
 		n64_pi_write_routine = n64_pi_write_invalid_area;
 
