@@ -78,8 +78,10 @@ uint16_t get_pi_bus_freq(void)
     return pi_bus_freq;
 }
 
+PIO pio = pio0;
 
 #define FIFO_LOOK_AHEAD
+#define SRAM_LOOK_AHEAD
 uint32_t last_addr = 0;
 uint8_t pi_last_page = 0;
 uint32_t flash_bank_available;
@@ -93,6 +95,7 @@ uint32_t debug_value = 0;
 uint32_t bulk_start;
 
 static uint32_t n64_pi_bulk_offset;
+static uint32_t n64_pi_bulk_write_offset;
 
 typedef uint16_t(* N64_PI_READ_FUNC)();
 typedef void(* N64_PI_WRITE_FUNC)(uint16_t);
@@ -122,7 +125,7 @@ void n64_pi_write_sram(uint16_t data){
 	// if(g_is_n64_sram_write){
 	// 	printf("w%04x\n",data);
 	// }
-	sram_16[n64_pi_bulk_offset] = data;
+	sram_16[n64_pi_bulk_write_offset] = data;
 }
 
 // invalid area
@@ -136,21 +139,32 @@ void n64_pi_write_invalid_area(uint16_t data){
 
 // LAT期間にできる処理
 static inline void n64_pi_address_decode(uint32_t n64_pi_addr){
-	if (n64_pi_addr >= 0x10000000 && n64_pi_addr <= 0x13FFFFFF) {
+	// オカリナのSRAMアクセスが早すぎるので分岐を最優先で行う
+	if (n64_pi_addr >= 0x08000000 && n64_pi_addr <= 0x0FFFFFFF) {
+		/* SRAM */
+		n64_pi_bulk_offset = (n64_pi_addr & (SRAM_SIZE-1))>>1;
+#ifdef SRAM_LOOK_AHEAD
+		pio_sm_put(pio, 0, 0xFFF00000 | (sram_16[n64_pi_bulk_offset]));
+		pio_sm_put(pio, 0, 0xFFF10000 | (sram_16[n64_pi_bulk_offset+1]));
+		// pio_sm_put(pio, 0, /*0xFFFF0000 |*/ (word));
+		// pio_sm_put(pio, 0, /*0xFFFF0000 |*/ 0xCAFE);
+		n64_pi_bulk_offset+=2;
+#endif
+		n64_pi_read_routine = n64_pi_read_sram;
+		n64_pi_write_routine = n64_pi_write_sram;
+		bulk_start = n64_pi_bulk_offset;
+		n64_pi_bulk_write_offset = (n64_pi_addr & (SRAM_SIZE-1))>>1;
+		// if(g_is_n64_sram_write){
+		// 	printf("a%x\n",n64_pi_addr);
+		// }
+		// SRAM PRELOAD
+		
+
+	} else if (n64_pi_addr >= 0x10000000 && n64_pi_addr <= 0x13FFFFFF) {
 		/* ROM */
 		n64_pi_bulk_offset = (n64_pi_addr & 0x03FFFFFF)>>1;
 		n64_pi_read_routine = n64_pi_read_rom;
 		n64_pi_write_routine = n64_pi_write_invalid_area;
-
-	} else if (n64_pi_addr >= 0x08000000 && n64_pi_addr <= 0x0FFFFFFF) {
-		/* SRAM */
-		n64_pi_bulk_offset = (n64_pi_addr & (SRAM_SIZE-1))>>1;
-		n64_pi_read_routine = n64_pi_read_sram;
-		n64_pi_write_routine = n64_pi_write_sram;
-		bulk_start = n64_pi_bulk_offset;
-		// if(g_is_n64_sram_write){
-		// 	printf("a%x\n",n64_pi_addr);
-		// }
 
 	} else {
 		/* INVALID SPACE */
@@ -205,7 +219,6 @@ static void inline pi_bank_change(uint8_t page){
 void n64_pi(void)
 {
     // setup PIO
-    PIO pio = pio0;
     pio_clear_instruction_memory(pio);
     uint offset = pio_add_program(pio, &pi_program);
     pi_program_init(pio, 0, offset);
@@ -228,7 +241,8 @@ pio_sm_put(pio, 0, 0x00000000); // send "SYNC"
 	// debug_value = addr;
 	if (!addr) {
 	    // from PIO: READ REQUEST
-		do {		
+		while(1) {
+		    word = n64_pi_read_routine();
 		    pio_sm_put_blocking(pio, 0, 0xFFFF0000 | (word));
 		    n64_pi_bulk_offset++;
 		//      printf("r%08X %04x\n", last_addr, word);
@@ -238,7 +252,7 @@ pio_sm_put(pio, 0, 0x00000000); // send "SYNC"
 			// 指示はまだない
 			if(pio_sm_is_tx_fifo_full(pio, 0)){
 				// TXFIFOが詰まってやれることがない→指示待ち
-				tight_loop_contents();
+				//tight_loop_contents();
 				goto check_rx_fifo;
 			}else{
 				// TXIFOが空いているので突っ込んでしまえ
@@ -250,10 +264,12 @@ pio_sm_put(pio, 0, 0x00000000); // send "SYNC"
 #else
 		    addr = pio_sm_get_blocking(pio, 0);
 #endif
-		    word = n64_pi_read_routine();
-		} while (addr == 0);
+		    // ahead2
+		    if((addr)){break;}
+		//     word = n64_pi_read_routine();
+		};
 	    pio_sm_put(pio, 0, 0x00000000); // send "SYNC"
-	        n64_bus_bulk_read_exit(last_addr);
+	        // n64_bus_bulk_read_exit(last_addr);
 		
 		continue;	
 	    
@@ -261,7 +277,7 @@ pio_sm_put(pio, 0, 0x00000000); // send "SYNC"
 	    // from PIO: WRITE	    
 		do {
 		    n64_pi_write_routine((addr >> 16));
-		    n64_pi_bulk_offset++;
+		    n64_pi_bulk_write_offset++;
 // write_check_rx_fifo:
 // 		    if(pio_sm_is_rx_fifo_empty(pio, 0)){
 // 			goto write_check_rx_fifo;
@@ -277,11 +293,11 @@ pio_sm_put(pio, 0, 0x00000000); // send "SYNC"
 
 	} else {
 	    /* from PIO: ADDRESS SET*/
-	    last_addr = addr; // TODO: 消す。完全に下の関数で管理するようにする
 	    n64_pi_address_decode(addr);
+	    last_addr = addr; // TODO: 消す。完全に下の関数で管理するようにする
 
 	    // preread
-	    word = n64_pi_read_routine();
+	//     word = n64_pi_read_routine();
 	}
 
 	addr = pio_sm_get_blocking(pio, 0);
