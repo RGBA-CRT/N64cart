@@ -34,7 +34,7 @@ uint32_t inline address_n64_rom_to_flash(uint32_t n64_rom_address){
 }
 
 // #define rom_file_16(adr) rom_file_16_piptr[adr]
-#define rom_file_16(adr) flash_quad_read16_EC( address_n64_rom_to_flash(adr) )
+#define rom_file_16(adr) flash_quad_read16_cached( address_n64_rom_to_flash(adr) )
 
 // static uint16_t *rom_jpeg_16;
 

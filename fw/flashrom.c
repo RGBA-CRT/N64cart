@@ -22,7 +22,7 @@ static bool boot2_copyout_valid = false;
 static const struct FlashChip flash_chip_table[] = {
 //    { 0xef, 0x4020, 4, 16, 300000, 0x7012, 3, 2, "W25Q512" }, // Flashオーバークロック
 //    { 0xef, 0x4020, 4, 16, 291000, 0x7010, 2, 2, "W25Q512" }, // Flashオーバークロック
-   { 0xef, 0x4020, 4, 16, 300000, 0x4032, 4, 3, "W25Q512" }, // Flashオーバークロック
+   { 0xef, 0x4020, 4, 16, 300000, 0x4028, 4, 3, "W25Q512" }, // Flashオーバークロック
 //    { 0xef, 0x4020, 4, 16, (96000*3), 0x8060, 3, 2, "W25Q512" }, // ギリギリ動く
 //    { 0xef, 0x4020, 4, 16, (9/0000*3), 0x5540, 3, 2, "W25Q512" }, // ギリギリ動く
 //    { 0xef, 0x4020, 4, 16, (133000*3), 0x6c20, 4, 2, "W25Q512" }, // Firmの起動まではいく
@@ -415,6 +415,11 @@ uint8_t __no_inline_not_in_flash_func(flash_get_ea_reg)(void)
 #endif
 }
 
+static uint32_t last_val32;
+static uint32_t last_addr=0;
+int debug_en_cnt=0;
+// #define DEBUG_ACCESS_LOG(...) printf(__VA_ARGS__)
+#define DEBUG_ACCESS_LOG(...) /*printf(__VA_ARGS__)*/
 // from original repository: https://github.com/pdaxrom/N64cart/commit/798c9a9d0d922c8fda239acc1c7ed0fe3738c840
 uint16_t __no_inline_not_in_flash_func(flash_quad_read16_EC)(uint32_t addr)
 {
@@ -428,12 +433,45 @@ uint16_t __no_inline_not_in_flash_func(flash_quad_read16_EC)(uint32_t addr)
     // WAIT_SSI_TX();
     while (!(ssi_hw->sr & SSI_SR_RFNE_BITS))/* {printf("%%");}*/;
     
-    uint32_t val = ssi_hw->dr0;
+    last_val32 = ssi_hw->dr0;
     // uint32_t val2 = ssi_hw->dr0;
 
     // flash_cs_force(1);
     // if((addr&0xFFFFF) == 0x0000)
     //     printf("A_%08x: %08x\n", addr, val);
 
-    return val >> 16;
+    last_addr = addr;
+    return last_val32 >> 16;
+}
+
+uint16_t __no_inline_not_in_flash_func(flash_quad_read16_cached)(uint32_t addr){
+    uint32_t masked_addr = (addr & 0xFFFFFFFC);
+    if(masked_addr != last_addr){
+        DEBUG_ACCESS_LOG("F");
+        flash_quad_read16_EC(addr);
+    }
+
+    DEBUG_ACCESS_LOG("L %x: %08x:%08x: ", addr, last_addr, last_val32);
+    // if((addr == (masked_addr))){
+    //     DEBUG_ACCESS_LOG("c0\n");
+    //     return last_val32 >> 16;
+    // }else if((addr == (masked_addr+2))){
+    //     DEBUG_ACCESS_LOG("c2\n");
+    //     return last_val32;
+    // }else if((addr == (masked_addr+1))){
+    //     /* byteアクセス専用。実機PIはここに分岐しない。*/
+    //     DEBUG_ACCESS_LOG("c1\n");
+    //     return (last_val32 >> 16);
+    // }else{
+    //     /* byteアクセス専用｡実機PIはここに分岐しない｡*/
+    //     DEBUG_ACCESS_LOG("c3\n");
+    //     return (last_val32);
+    // }
+    if(addr & 0x2){
+        DEBUG_ACCESS_LOG("c2\n");
+        return last_val32;
+    }else{
+        DEBUG_ACCESS_LOG("c0\n");
+        return last_val32>>16;
+    }
 }
